@@ -1,0 +1,24 @@
+{
+ "name": "boosted trees: all but angle",
+ "features": [
+  "hh",
+  "vv",
+  "ratio",
+  "hh_texture",
+  "ratio_texture",
+  "hh_smooth",
+  "ratio_smooth"
+ ],
+ "frozen_at": "2026-11-14T20:13:22",
+ "training_rows": 680000,
+ "training_scenes": 22,
+ "held_out_scores_on_training_scenes": {
+  "balanced": 94.3,
+  "water_found": 94.0,
+  "ice_found": 94.7,
+  "worst_scene": 76.0,
+  "ice_in_all_ice_scenes": 98.1,
+  "water_in_all_water_scenes": 96.9,
+  "laser_confirmed_ice_found": NaN
+ }
+}

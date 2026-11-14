@@ -284,3 +284,7 @@ explained the concepts as we went. The "What I learned" section is written by me
 - Otsu, N. (1979). A threshold selection method from gray-level histograms. *IEEE Trans. SMC*, 9(1).
 - Spreen, G., Kaleschke, L., Heygster, G. (2008). Sea ice remote sensing using AMSR-E 89-GHz channels. *JGR*, 113, C02S03.
 - Park, J.-W., Korosov, A., Babiker, M., et al. (2018). Efficient thermal noise removal for Sentinel-1 TOPSAR cross-polarization channel. *IEEE TGRS*, 56(3).
+
+## NISAR sea ice detection (Space Apps 2026)
+
+Ice vs open water from NISAR HH+VV, checked against AMSR2. See [docs/DETECTION.md](docs/DETECTION.md) for results and how to reproduce, [docs/REFERENCE_DATA.md](docs/REFERENCE_DATA.md) for the reference data and its limits, [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) for which data (NISAR, Sentinel-1, third party) is used where, and [docs/DATA_CHOICES.md](docs/DATA_CHOICES.md) for why. Current status: [HANDOFF.md](HANDOFF.md).

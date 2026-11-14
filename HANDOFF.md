@@ -51,7 +51,7 @@ First building blocks for trajectory:
 | Why we chose this data | `docs/DATA_CHOICES.md` |
 | Code | `scripts/` (48 tests in `tests/`, run `.venv/bin/python -m pytest -q tests`) |
 | Tracking run | `scripts/run_chukchi.py` (writes MongoDB + `figures/chukchi_*.png`) |
-| Raw data (not in git) | `data/`, 23 GB. 8.7 GB of it is ICESat-2 in `data/reference/icesat2/`, safe to delete |
+| Raw data (not in git) | `data/`, 13 GB. ICESat-2 files and the unused 28 Oct Sentinel-1 scene were deleted on 14 Nov; the scripts fetch ICESat-2 again if a table is rebuilt |
 
 ## Practical notes
 

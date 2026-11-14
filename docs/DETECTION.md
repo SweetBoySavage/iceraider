@@ -49,7 +49,23 @@ Status: **finished and frozen on 14 Nov 2026.** Do not tune the model on the tes
 3. **Glass-calm water** (20 Sep) sends almost nothing back in both channels, so it can be taken for ice.
 4. **Thin new ice** (3 Oct) can look like water.
 5. **Only tested in one region and one season** (autumn freeze-up, Pacific side of the Arctic).
-6. **No land class.** Scenes with land were left out.
+6. **Land is not learned, it is masked.** Training and test scenes contain no land. Without a mask the model
+   calls land "ice" (97.5 % of land pixels in a check scene near Utqiagvik, 27 Oct). So land is removed with a
+   coastline mask before the model answers (see "Land" below). Waters close to the coast are not validated.
+
+## Land
+
+- Land comes from the **GSHHG full-resolution coastline** (third party, see `DATA_SOURCES.md`), not from the model.
+- A **1 km safety margin** is added around all land. Lakes count as land.
+- `classify_scene` returns a map with sea ice, open water, land and no-data.
+- Check on a real coastal scene: `figures/land_mask_check.png`. The coastline lines up with the radar image.
+- First mask of a session takes about 30 s (reading the coastline); it is slow for an app unless cached per scene.
+
+One-time download of the coastline (119 MB zip, 96 MB file, not stored in git):
+
+```
+.venv/bin/python -c "from scripts.land_mask import download; download()"
+```
 
 ## Reproduce
 
@@ -89,6 +105,15 @@ from scripts.nisar_loader import load_gcov
 water, usable = predict_scene(load_model(), load_gcov("data/<scene>.h5"))   # water: True = open water
 ```
 
+With land (recommended for anything shown to users):
+
+```python
+from scripts.evaluate_detection import LAND, OPEN_WATER, SEA_ICE, classify_scene, load_model
+from scripts.nisar_loader import load_gcov
+
+classes = classify_scene(load_model(), load_gcov("data/<scene>.h5"))        # 0 sea ice, 1 open water, 2 land, 255 no data
+```
+
 ## Files
 
 | File | What it does |
@@ -100,3 +125,4 @@ water, usable = predict_scene(load_model(), load_gcov("data/<scene>.h5"))   # wa
 | `scripts/train_detection.py` | Compares models on training data, freezes one |
 | `scripts/evaluate_detection.py` | Runs the frozen model on the test set |
 | `scripts/classify.py` | Lee filter, the simple HH minus VV rule |
+| `scripts/land_mask.py` | Land mask from the GSHHG coastline, with a safety margin |

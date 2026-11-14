@@ -1,0 +1,54 @@
+{
+ "model": "boosted trees: all but angle",
+ "features": [
+  "hh",
+  "vv",
+  "ratio",
+  "hh_texture",
+  "ratio_texture",
+  "hh_smooth",
+  "ratio_smooth"
+ ],
+ "evaluated_at": "2026-11-14T20:08:34",
+ "test_rows": 140000,
+ "test_scenes": 4,
+ "scores": {
+  "balanced": 89.6,
+  "water_found": 95.7,
+  "ice_found": 83.5,
+  "worst_scene": 76.6,
+  "ice_in_all_ice_scenes": 99.7,
+  "water_in_all_water_scenes": NaN,
+  "laser_confirmed_ice_found": NaN
+ },
+ "per_scene": {
+  "NISAR_L2_PR_GCOV_034_075_D_046_0505_SVSH_A_20261029T093910_20261029T093940_P05036_N_F_J_001": {
+   "type": "all ice",
+   "water_found": null,
+   "ice_found": 99.7
+  },
+  "NISAR_L2_PR_GCOV_034_103_D_053_0505_SVSH_A_20261031T081946_20261031T082013_P05036_N_P_J_001": {
+   "type": "edge",
+   "water_found": 99.8,
+   "ice_found": 53.3
+  },
+  "NISAR_L2_PR_GCOV_034_091_A_040_0505_SVSH_A_20261030T121356_20261030T121431_P05036_N_F_J_001": {
+   "type": "edge",
+   "water_found": 91.0,
+   "ice_found": 97.5
+  },
+  "NISAR_L2_PR_GCOV_034_106_A_040_0505_SVSH_A_20261031T131212_20261031T131247_P05036_N_F_J_001": {
+   "type": "edge",
+   "water_found": 96.1,
+   "ice_found": 83.4
+  }
+ },
+ "skipped_by_quality_gate": [
+  "NISAR_L2_PR_GCOV_034_074_D_049_0505_SHSV_A_20261029T080052_20261029T080123_P05036_N_F_J_001",
+  "NISAR_L2_PR_GCOV_034_077_A_040_0505_SVSH_A_20261029T125533_20261029T125608_P05036_N_F_J_001",
+  "NISAR_L2_PR_GCOV_034_077_A_041_0505_SVSH_A_20261029T125607_20261029T125638_P05036_N_F_J_001",
+  "NISAR_L2_PR_GCOV_034_074_D_050_0505_SHSV_A_20261029T080122_20261029T080157_P05036_N_F_J_001",
+  "NISAR_L2_PR_GCOV_034_078_A_037_0505_SVSH_A_20261029T143356_20261029T143416_P05036_N_P_J_001",
+  "NISAR_L2_PR_GCOV_034_107_A_037_0505_SVSH_A_20261031T145018_20261031T145055_P05036_N_F_J_001"
+ ]
+}

@@ -46,6 +46,8 @@ def figure(frozen, scenes):
     import matplotlib.pyplot as plt
     from matplotlib.colors import ListedColormap
     edge = [s for s in scenes if s["type"] == "edge"][:3]
+    if not edge:
+        return
     fig, axes = plt.subplots(len(edge), 3, figsize=(18, 6 * len(edge)), squeeze=False)
     for row, s in zip(axes, edge):
         scene = load_gcov(detection.DATA / f"{s['name']}.h5")
@@ -74,12 +76,20 @@ def main(use_db: bool):
     X, y, laser, scene, names, types = load_table(table)
     cols = [names.index(f) for f in frozen["features"]]
     pred = frozen["model"].predict(X[:, cols])
+    t = np.load(table, allow_pickle=False)
+    scene_names, skipped = [str(n) for n in t["names"]], [str(n) for n in t["skipped"]]
+    per_scene = {}
+    for i in sorted(set(scene)):
+        m = scene == i
+        per_scene[scene_names[i]] = {"type": types[i], **{f"{k}_found": (round(100 * float(np.mean(pred[m & (y == c)] == c)), 1) if (m & (y == c)).any() else None)
+                                                         for k, c in (("water", WATER), ("ice", ICE))}}
     result = {"model": frozen["name"], "features": frozen["features"], "evaluated_at": datetime.now().isoformat(timespec="seconds"),
-              "test_rows": int(len(y)), "test_scenes": int(len(set(scene))), "scores": scores(y, pred, laser, scene, types)}
+              "test_rows": int(len(y)), "test_scenes": int(len(set(scene))), "scores": scores(y, pred, laser, scene, types),
+              "per_scene": per_scene, "skipped_by_quality_gate": skipped}
     (MODELS / "test_result.json").write_text(json.dumps(result, indent=1))
     print(json.dumps(result, indent=1))
-    scenes = json.loads((detection.DATA / "dataset.json").read_text())["test"]
-    figure(frozen, scenes)
+    scenes = json.loads((ROOT / "config" / "dataset.json").read_text())["test"]
+    figure(frozen, [s for s in scenes if s["name"] not in skipped])
     if use_db:
         db = mongo_store.get_db()
         db.results.replace_one({"scene": "TEST SET 29-31 Oct 2026", "method": frozen["name"]},

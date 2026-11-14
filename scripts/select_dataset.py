@@ -1,4 +1,4 @@
-"""Choose the NISAR scenes for training and testing the ice / open-water model. Writes data/dataset.json.
+"""Choose the NISAR scenes for training and testing the ice / open-water model. Writes config/dataset.json.
 
 Rules (fixed before any test scene is opened):
   - Area: Chukchi + western Beaufort Sea, 70-78 N, 150-180 W. Only scenes with HH and VV, no land.
@@ -27,7 +27,7 @@ WANT = {"train": {"edge": 14, "all ice": 5, "all water": 5}, "test": {"edge": 8,
 # NISAR scenes with an ICESat-2 (ATL07 quick look) pass within 6 hours, found with NASA's CMR search.
 ICESAT2_MATCHES = ["033_131_D_051", "033_131_D_052", "034_074_D_049", "034_075_D_046",
                    "034_102_D_050", "034_102_D_051", "034_103_D_047", "034_104_A_044"]
-OUT = ROOT / "data" / "dataset.json"
+OUT = ROOT / "config" / "dataset.json"
 
 
 def scene_type(footprint_lonlat, date: str, cache: dict):

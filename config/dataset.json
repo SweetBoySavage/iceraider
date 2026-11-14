@@ -1,0 +1,253 @@
+{
+ "created": "2026-11-14T17:01:41",
+ "train_period": [
+  "2026-09-14",
+  "2026-10-28"
+ ],
+ "test_period": [
+  "2026-10-29",
+  "2026-10-31"
+ ],
+ "train": [
+  {
+   "name": "NISAR_L2_PR_GCOV_033_131_D_051_0505_SVSH_A_20261021T065520_20261021T065557_P05023_N_F_J_001",
+   "date": "20261021",
+   "type": "edge",
+   "icesat2": true,
+   "gb": 0.4
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_049_A_039_0505_SVSH_A_20261027T141811_20261027T141848_P05036_N_F_J_001",
+   "date": "20261027",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.32
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_060_D_051_0505_SVSH_A_20261028T084333_20261028T084410_P05036_N_F_J_001",
+   "date": "20261028",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.3
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_030_148_A_045_0505_SVSH_A_20260916T110959_20260916T111044_P05023_N_F_J_001",
+   "date": "20260916",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.48
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_031_075_D_048_0505_SHSV_A_20260923T094013_20260923T094046_P05023_N_F_J_001",
+   "date": "20260923",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.3
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_032_045_D_050_0505_SVSH_A_20261003T074442_20261003T074518_P05023_N_F_J_001",
+   "date": "20261003",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.35
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_032_146_D_050_0505_SVSH_A_20261010T075302_20261010T075337_P05023_N_F_J_001",
+   "date": "20261010",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.35
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_031_032_D_048_0505_SVSH_A_20260920T100511_20260920T100544_P05023_F_F_J_001",
+   "date": "20260920",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.33
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_033_103_D_050_0505_SVSH_A_20261019T081800_20261019T081835_P05023_N_F_J_001",
+   "date": "20261019",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.32
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_031_003_D_046_0505_SVSH_A_20260918T094728_20260918T094804_P05023_F_F_J_001",
+   "date": "20260918",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.33
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_030_133_D_047_0505_SVSH_A_20260915T101301_20260915T101332_P05023_N_F_J_001",
+   "date": "20260915",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.31
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_032_077_A_040_0505_SVSH_A_20261005T125533_20261005T125608_P05023_N_F_J_001",
+   "date": "20261005",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.38
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_031_161_D_049_0505_SVSH_A_20260929T085048_20260929T085119_P05023_N_F_J_001",
+   "date": "20260929",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.26
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_030_162_D_046_0505_SVSH_A_20260917T102905_20260917T102941_P05023_N_F_J_001",
+   "date": "20260917",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.37
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_047_A_045_0505_SVSH_A_20261027T110140_20261027T110225_P05036_N_F_J_001",
+   "date": "20261027",
+   "type": "all ice",
+   "icesat2": false,
+   "gb": 0.48
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_061_D_046_0505_SVSH_A_20261028T102047_20261028T102122_P05036_N_F_J_001",
+   "date": "20261028",
+   "type": "all ice",
+   "icesat2": false,
+   "gb": 0.36
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_033_105_A_045_0505_SVSH_A_20261019T113458_20261019T113542_P05023_N_F_J_001",
+   "date": "20261019",
+   "type": "all ice",
+   "icesat2": false,
+   "gb": 0.5
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_033_018_D_047_0505_SVSH_A_20261013T104619_20261013T104649_P05023_N_F_J_001",
+   "date": "20261013",
+   "type": "all ice",
+   "icesat2": false,
+   "gb": 0.34
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_032_046_D_046_0505_SVSH_A_20261003T092230_20261003T092306_P05023_N_F_J_001",
+   "date": "20261003",
+   "type": "all ice",
+   "icesat2": false,
+   "gb": 0.3
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_031_045_D_049_0505_SVSH_A_20260921T074413_20260921T074443_P05023_N_F_J_001",
+   "date": "20260921",
+   "type": "all water",
+   "icesat2": false,
+   "gb": 0.31
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_031_005_A_040_0505_SVSH_A_20260918T130352_20260918T130427_P05023_F_F_J_001",
+   "date": "20260918",
+   "type": "all water",
+   "icesat2": false,
+   "gb": 0.37
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_030_146_D_049_0505_SVSH_A_20260916T075232_20260916T075303_P05023_N_F_J_001",
+   "date": "20260916",
+   "type": "all water",
+   "icesat2": false,
+   "gb": 0.31
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_032_164_A_039_0505_SVSH_A_20261011T134453_20261011T134530_P05023_N_F_J_001",
+   "date": "20261011",
+   "type": "all water",
+   "icesat2": false,
+   "gb": 0.36
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_031_103_D_053_0505_SVSH_A_20260925T081945_20260925T082012_P05023_N_P_J_001",
+   "date": "20260925",
+   "type": "all water",
+   "icesat2": false,
+   "gb": 0.31
+  }
+ ],
+ "test": [
+  {
+   "name": "NISAR_L2_PR_GCOV_034_074_D_049_0505_SHSV_A_20261029T080052_20261029T080123_P05036_N_F_J_001",
+   "date": "20261029",
+   "type": "all ice",
+   "icesat2": true,
+   "gb": 0.3
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_075_D_046_0505_SVSH_A_20261029T093910_20261029T093940_P05036_N_F_J_001",
+   "date": "20261029",
+   "type": "all ice",
+   "icesat2": true,
+   "gb": 0.31
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_103_D_053_0505_SVSH_A_20261031T081946_20261031T082013_P05036_N_P_J_001",
+   "date": "20261031",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.31
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_077_A_040_0505_SVSH_A_20261029T125533_20261029T125608_P05036_N_F_J_001",
+   "date": "20261029",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.38
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_091_A_040_0505_SVSH_A_20261030T121356_20261030T121431_P05036_N_F_J_001",
+   "date": "20261030",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.4
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_106_A_040_0505_SVSH_A_20261031T131212_20261031T131247_P05036_N_F_J_001",
+   "date": "20261031",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.37
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_077_A_041_0505_SVSH_A_20261029T125607_20261029T125638_P05036_N_F_J_001",
+   "date": "20261029",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.35
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_074_D_050_0505_SHSV_A_20261029T080122_20261029T080157_P05036_N_F_J_001",
+   "date": "20261029",
+   "type": "edge",
+   "icesat2": false,
+   "gb": 0.34
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_078_A_037_0505_SVSH_A_20261029T143356_20261029T143416_P05036_N_P_J_001",
+   "date": "20261029",
+   "type": "all water",
+   "icesat2": false,
+   "gb": 0.26
+  },
+  {
+   "name": "NISAR_L2_PR_GCOV_034_107_A_037_0505_SVSH_A_20261031T145018_20261031T145055_P05036_N_F_J_001",
+   "date": "20261031",
+   "type": "all water",
+   "icesat2": false,
+   "gb": 0.28
+  }
+ ]
+}

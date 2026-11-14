@@ -5,7 +5,7 @@ Needs a NASA Earthdata Login in ~/.netrc:
 
 Run:  python scripts/download_scenes.py            # downloads everything in SCENES
       python scripts/download_scenes.py --dry-run  # only lists names and sizes
-      python scripts/download_scenes.py --dataset  # also the train/test scenes in data/dataset.json
+      python scripts/download_scenes.py --dataset  # also the train/test scenes in config/dataset.json
 
 Area: Chukchi Sea / Chukchi Borderland pack ice, about 75.4-77.5 N, 160-170 W.
 The two NISAR passes are 1 day apart and overlap 93 %.
@@ -20,7 +20,8 @@ from pathlib import Path
 
 import asf_search as asf
 
-DATA = Path(__file__).resolve().parents[1] / "data"
+ROOT = Path(__file__).resolve().parents[1]
+DATA = ROOT / "data"
 MAX_TOTAL_GB = 20  # safety cap (user approved about 17 GB on 14 Nov 2026)
 EARTHDATA_HOST = "urs.earthdata.nasa.gov"
 
@@ -63,7 +64,7 @@ def find(scenes=SCENES):
 
 def dataset_scenes() -> list[str]:
     import json
-    d = json.loads((DATA / "dataset.json").read_text())
+    d = json.loads((ROOT / "config" / "dataset.json").read_text())
     return [c["name"] for split in ("train", "test") for c in d[split]]
 
 

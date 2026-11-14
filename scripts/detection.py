@@ -27,7 +27,7 @@ from scripts import reference                         # noqa: E402
 from scripts.classify import lee_filter, to_db        # noqa: E402
 from scripts.nisar_loader import DeadChannelError, load_gcov   # noqa: E402
 
-DATA, REF, TABLES = ROOT / "data", ROOT / "data" / "reference", ROOT / "data" / "tables"
+DATA, REF, TABLES = ROOT / "data", ROOT / "data" / "reference", ROOT / "tables"
 FEATURES = ["hh", "vv", "ratio", "incidence", "hh_texture", "ratio_texture", "hh_smooth", "ratio_smooth"]
 PER_CLASS = 20000          # random pixels per class and scene
 TEXTURE_WINDOW = 9         # pixels (720 m)
@@ -111,7 +111,7 @@ def scene_rows(name: str, per_class: int = PER_CLASS):
 
 
 def build_table(split: str) -> Path:
-    scenes = json.loads((DATA / "dataset.json").read_text())[split]
+    scenes = json.loads((ROOT / "config" / "dataset.json").read_text())[split]
     X, y, laser, scene_id, skipped = [], [], [], [], []
     for i, s in enumerate(scenes):
         try:

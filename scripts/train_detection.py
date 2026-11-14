@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts.classify import COPOL_RATIO_WATER_DB      # noqa: E402
 
-TABLE, MODELS = ROOT / "data" / "tables" / "train.npz", ROOT / "models"
+TABLE, MODELS = ROOT / "tables" / "train.npz", ROOT / "models"
 WATER, ICE = 0, 1
 
 

@@ -287,4 +287,4 @@ explained the concepts as we went. The "What I learned" section is written by me
 
 ## NISAR sea ice detection (Space Apps 2026)
 
-Ice vs open water from NISAR HH+VV, checked against AMSR2. See [docs/DETECTION.md](docs/DETECTION.md) for results and how to reproduce, and [docs/REFERENCE_DATA.md](docs/REFERENCE_DATA.md) for the reference data and its limits.
+Ice vs open water from NISAR HH+VV, checked against AMSR2. See [docs/DETECTION.md](docs/DETECTION.md) for results and how to reproduce, [docs/REFERENCE_DATA.md](docs/REFERENCE_DATA.md) for the reference data and its limits, and [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) for which data (NISAR, Sentinel-1, third party) is used where.

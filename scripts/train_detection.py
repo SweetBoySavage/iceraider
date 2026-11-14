@@ -41,6 +41,25 @@ class FixedRule:
         return np.where(X[:, self.column] < self.threshold, WATER, ICE)
 
 
+class DarkIsWater:
+    """Wrap a model: pixels darker than any sea ice we have seen are open water (glass-calm water).
+
+    Calm water sends almost nothing back in HH and VV, so their difference vanishes and the ratio fails.
+    In training, ice was never below -27.6 dB in smoothed HH (0.1 % point); -28 dB is the cut.
+    The LAST column given to this model must be hh_smooth; the wrapped model gets the other columns.
+    """
+
+    def __init__(self, base, threshold_db: float = -28.0):
+        self.base, self.threshold_db = base, threshold_db
+
+    def fit(self, X, y, **_):
+        self.base.fit(X[:, :-1], y)
+        return self
+
+    def predict(self, X):
+        return np.where(X[:, -1] < self.threshold_db, WATER, self.base.predict(X[:, :-1]))
+
+
 def candidates(names: list[str]) -> dict:
     """name -> (columns used, model). Kept small on purpose: each one can be explained in a sentence."""
     col = {n: i for i, n in enumerate(names)}
@@ -58,6 +77,11 @@ def candidates(names: list[str]) -> dict:
         "logistic: all": (list(range(len(names))), logistic()),
         "boosted trees: all but angle": (pick("hh", "vv", "ratio", "hh_texture", "ratio_texture", "hh_smooth", "ratio_smooth"), boosted()),
         "boosted trees: all": (list(range(len(names))), boosted()),
+        "rule + dark": (pick("ratio", "hh_smooth"), DarkIsWater(FixedRule(0))),
+        "logistic ratio + dark": (pick("ratio", "hh_smooth"), DarkIsWater(logistic())),
+        "logistic ratio_smooth + dark": (pick("ratio_smooth", "hh_smooth"), DarkIsWater(logistic())),
+        "trees (no angle) + dark": (pick("hh", "vv", "ratio", "hh_texture", "ratio_texture", "ratio_smooth", "hh_smooth"), DarkIsWater(boosted())),
+        "trees (ratio, textures) + dark": (pick("ratio", "ratio_smooth", "hh_texture", "ratio_texture", "hh_smooth"), DarkIsWater(boosted())),
     }
 
 

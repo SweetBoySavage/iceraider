@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts import reference                         # noqa: E402
 from scripts.classify import lee_filter, to_db        # noqa: E402
-from scripts.nisar_loader import load_gcov            # noqa: E402
+from scripts.nisar_loader import DeadChannelError, load_gcov   # noqa: E402
 
 DATA, REF, TABLES = ROOT / "data", ROOT / "data" / "reference", ROOT / "data" / "tables"
 FEATURES = ["hh", "vv", "ratio", "incidence", "hh_texture", "ratio_texture", "hh_smooth", "ratio_smooth"]
@@ -112,9 +112,14 @@ def scene_rows(name: str, per_class: int = PER_CLASS):
 
 def build_table(split: str) -> Path:
     scenes = json.loads((DATA / "dataset.json").read_text())[split]
-    X, y, laser, scene_id = [], [], [], []
+    X, y, laser, scene_id, skipped = [], [], [], [], []
     for i, s in enumerate(scenes):
-        xs, ys, ls = scene_rows(s["name"])
+        try:
+            xs, ys, ls = scene_rows(s["name"])
+        except DeadChannelError as error:          # quality gate, same rule for train and test
+            skipped.append(s["name"])
+            print(f"{split} {i + 1:2d}/{len(scenes)} SKIPPED: {error}", flush=True)
+            continue
         X.append(xs); y.append(ys); laser.append(ls); scene_id.append(np.full(len(ys), i))
         print(f"{split} {i + 1:2d}/{len(scenes)} {s['date']} {s['type']:9s} water {np.sum(ys == 0):6d}  ice {np.sum(ys == 1):6d}  "
               f"laser-confirmed ice {ls.sum():5d}", flush=True)
@@ -122,7 +127,7 @@ def build_table(split: str) -> Path:
     out = TABLES / f"{split}.npz"
     np.savez_compressed(out, X=np.concatenate(X), y=np.concatenate(y), laser=np.concatenate(laser),
                         scene=np.concatenate(scene_id), features=FEATURES, names=[s["name"] for s in scenes],
-                        types=[s["type"] for s in scenes])
+                        types=[s["type"] for s in scenes], skipped=skipped)
     return out
 
 

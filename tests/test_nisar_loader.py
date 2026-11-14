@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.nisar_loader import GCOV, fill_nan_with_nearest, list_polarisations, load_gcov
+from scripts.nisar_loader import DeadChannelError, GCOV, fill_nan_with_nearest, list_polarisations, load_gcov
 
 X = np.arange(0, 800, 80.0)            # 10 columns
 Y = np.arange(1600, 0, -80.0)          # 20 rows, descending like the real files
@@ -91,3 +91,11 @@ def test_incidence_angle_is_read_at_sea_level_or_none(tmp_path):
     s = load_gcov(make_file(tmp_path / "b.h5", with_angle=True))
     assert s.incidence.shape == (20, 10)
     assert s.incidence[0, 0] == pytest.approx(30) and s.incidence[7, 6] == pytest.approx(36)
+
+
+def test_channel_without_signal_fails_fast(tmp_path):
+    path = make_file(tmp_path / "a.h5")
+    with h5py.File(path, "a") as f:
+        f[f"{GCOV}/grids/frequencyA/VVVV"][...] = 1e-8
+    with pytest.raises(DeadChannelError, match="VV has no signal"):
+        load_gcov(path)

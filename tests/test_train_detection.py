@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.train_detection import ICE, WATER, FixedRule, candidates, held_out_predictions, scores
+from scripts.train_detection import ICE, WATER, DarkIsWater, FixedRule, candidates, held_out_predictions, scores
 
 NAMES = ["hh", "vv", "ratio", "incidence", "hh_texture", "ratio_texture", "hh_smooth", "ratio_smooth"]
 
@@ -39,3 +39,8 @@ def test_scores_report_the_special_cases():
     assert s["water_found"] == 50.0 and s["ice_found"] == 75.0 and s["balanced"] == 62.5
     assert s["ice_in_all_ice_scenes"] == 50.0 and s["laser_confirmed_ice_found"] == 100.0 and s["worst_scene"] == 50.0
     assert np.isnan(s["water_in_all_water_scenes"])
+
+
+def test_very_dark_pixels_are_water_whatever_the_base_model_says():
+    X = np.array([[-1.0, -15.0], [-1.0, -30.0], [-5.0, -15.0]])       # columns: ratio, hh_smooth
+    assert DarkIsWater(FixedRule(0)).fit(X, None).predict(X).tolist() == [ICE, WATER, WATER]

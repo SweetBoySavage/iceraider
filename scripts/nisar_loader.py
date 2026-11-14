@@ -23,6 +23,11 @@ from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import distance_transform_edt
 
 GCOV = "science/LSAR/GCOV"
+DEAD_CHANNEL_POWER = 1e-6   # -60 dB: far below any real surface (calm water is about -35 dB)
+
+
+class DeadChannelError(ValueError):
+    """A polarisation in the file carries no signal (seen in some provisional scenes: values near -80 dB)."""
 
 
 @dataclass
@@ -119,6 +124,9 @@ def load_gcov(path, pols=None, window=None, subtract_noise=True) -> GcovScene:
             data = g[pol.upper() * 2][rows, cols].astype("float64")
             if data.size == 0:
                 raise ValueError(f"window {window} is outside the scene ({n_rows} x {n_cols})")
+            if np.isfinite(data).any() and np.nanmedian(data) < DEAD_CHANNEL_POWER:
+                raise DeadChannelError(f"{path.name}: {pol.upper()} has no signal "
+                                       f"(median {10 * np.log10(max(np.nanmedian(data), 1e-30)):.0f} dB)")
             nesz[pol] = _noise_on_grid(f, available[pol], pol, y, x)
             if subtract_noise and not already_removed:
                 data = data - nesz[pol]

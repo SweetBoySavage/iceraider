@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.classify import dark_threshold, kmeans_classes, largest_clean_square, lee_filter, to_db
+from scripts.classify import water_from_copol_ratio, dark_threshold, kmeans_classes, largest_clean_square, lee_filter, to_db
 
 
 def test_to_db_and_floor():
@@ -33,3 +33,10 @@ def test_largest_clean_square_avoids_no_data():
     assert largest_clean_square(valid, sizes=(250, 150), step=50) == (0, 100, 150)
     with pytest.raises(ValueError):
         largest_clean_square(~np.ones((300, 300), bool), sizes=(150,))
+
+
+def test_water_is_where_hh_is_well_below_vv():
+    hh = np.array([-20.0, -15.0, -18.1])
+    vv = np.array([-14.0, -15.0, -15.0])
+    assert water_from_copol_ratio(hh, vv).tolist() == [True, False, True]
+    assert water_from_copol_ratio(hh, vv, threshold_db=-5).tolist() == [True, False, False]

@@ -32,6 +32,12 @@ SCENES = [
     "S1C_EW_GRDM_1SDH_20261027T182718_20261027T182818_010074_0141B9_7AA8",
     "S1C_EW_GRDM_1SDH_20261029T181119_20261029T181148_010103_0142B0_965D",
 ]
+# NISAR pair across the ice edge (about half open water, half ice, no land), 72 N 172 W.
+# Used to test ice-vs-water classification against the reference maps.
+EDGE_SCENES = [
+    "NISAR_L2_PR_GCOV_034_049_A_039_0505_SVSH_A_20261027T141811_20261027T141848_P05036_N_F_J_001",
+    "NISAR_L2_PR_GCOV_034_060_D_051_0505_SVSH_A_20261028T084333_20261028T084410_P05036_N_F_J_001",
+]
 WANTED_LEVELS = ("GCOV", "GRD_MD")
 
 
@@ -55,7 +61,7 @@ def find(scenes=SCENES):
 
 
 def main(dry_run: bool) -> None:
-    products = find()
+    products = find(SCENES + EDGE_SCENES)
     total = sum(size_bytes(p) for p in products)
     for p in products:
         print(f"{size_bytes(p) / 1e6:7.0f} MB  {p.properties['fileName']}")

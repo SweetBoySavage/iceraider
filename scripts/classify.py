@@ -41,3 +41,14 @@ def largest_clean_square(valid: np.ndarray, sizes=(2000, 1750, 1500, 1250, 1000)
                 if valid[r:r + size:25, c:c + size:25].all() and valid[r:r + size, c:c + size].all():
                     return r, c, size
     raise ValueError("no clean square window found")
+
+
+# Open water vs sea ice at L-band, from the two same-polarisation channels.
+# Water reflects VV much more strongly than HH (several dB); for sea ice the two are about equal.
+# -3 dB was tuned on one ice-edge scene (27 Oct 2026, Chukchi Sea) against AMSR2 ice concentration.
+COPOL_RATIO_WATER_DB = -3.0
+
+
+def water_from_copol_ratio(db_hh: np.ndarray, db_vv: np.ndarray, threshold_db: float = COPOL_RATIO_WATER_DB) -> np.ndarray:
+    """True where HH is more than `threshold_db` below VV: open water."""
+    return (db_hh - db_vv) < threshold_db

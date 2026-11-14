@@ -14,7 +14,7 @@ Y = np.arange(1600, 0, -80.0)          # 20 rows, descending like the real files
 NOISE = 0.001
 
 
-def make_file(path, noise_applied="False"):
+def make_file(path, noise_applied="False", with_angle=False):
     with h5py.File(path, "w") as f:
         for freq, pol, value in (("frequencyA", "VV", 0.02), ("frequencyB", "HH", 0.03)):
             g = f.create_group(f"{GCOV}/grids/{freq}")
@@ -30,6 +30,14 @@ def make_file(path, noise_applied="False"):
             n["xCoordinates"], n["yCoordinates"] = X[::3], Y[::3]
             n[pol] = np.full((Y[::3].size, X[::3].size), NOISE, "float32")
         f[f"{GCOV}/metadata/processingInformation/parameters/noiseCorrectionApplied"] = noise_applied.encode()
+        if with_angle:
+            r = f.create_group(f"{GCOV}/metadata/radarGrid")
+            r["heightAboveEllipsoid"] = np.array([-500.0, 0.0, 500.0])
+            r["xCoordinates"], r["yCoordinates"] = X[::3], Y[::3]
+            cube = np.empty((3, Y[::3].size, X[::3].size), "float32")
+            cube[:] = (30 + X[::3] / 80)[None, None, :]          # angle grows with x: 30 deg at x = 0
+            cube[0] += 99                                        # wrong height level, must not be used
+            r["incidenceAngle"] = cube
     return path
 
 
@@ -76,3 +84,10 @@ def test_empty_noise_cells_take_the_nearest_value():
 def test_all_empty_noise_map_fails_fast():
     with pytest.raises(ValueError):
         fill_nan_with_nearest(np.full((2, 2), np.nan))
+
+
+def test_incidence_angle_is_read_at_sea_level_or_none(tmp_path):
+    assert load_gcov(make_file(tmp_path / "a.h5")).incidence is None
+    s = load_gcov(make_file(tmp_path / "b.h5", with_angle=True))
+    assert s.incidence.shape == (20, 10)
+    assert s.incidence[0, 0] == pytest.approx(30) and s.incidence[7, 6] == pytest.approx(36)

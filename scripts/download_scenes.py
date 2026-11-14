@@ -5,6 +5,7 @@ Needs a NASA Earthdata Login in ~/.netrc:
 
 Run:  python scripts/download_scenes.py            # downloads everything in SCENES
       python scripts/download_scenes.py --dry-run  # only lists names and sizes
+      python scripts/download_scenes.py --dataset  # also the train/test scenes in data/dataset.json
 
 Area: Chukchi Sea / Chukchi Borderland pack ice, about 75.4-77.5 N, 160-170 W.
 The two NISAR passes are 1 day apart and overlap 93 %.
@@ -20,7 +21,7 @@ from pathlib import Path
 import asf_search as asf
 
 DATA = Path(__file__).resolve().parents[1] / "data"
-MAX_TOTAL_GB = 10  # safety cap for the test phase
+MAX_TOTAL_GB = 20  # safety cap (user approved about 17 GB on 14 Nov 2026)
 EARTHDATA_HOST = "urs.earthdata.nasa.gov"
 
 SCENES = [
@@ -60,8 +61,15 @@ def find(scenes=SCENES):
     return found
 
 
-def main(dry_run: bool) -> None:
-    products = find(SCENES + EDGE_SCENES)
+def dataset_scenes() -> list[str]:
+    import json
+    d = json.loads((DATA / "dataset.json").read_text())
+    return [c["name"] for split in ("train", "test") for c in d[split]]
+
+
+def main(dry_run: bool, with_dataset: bool = False) -> None:
+    wanted = SCENES + EDGE_SCENES + (dataset_scenes() if with_dataset else [])
+    products = find(list(dict.fromkeys(wanted)))
     total = sum(size_bytes(p) for p in products)
     for p in products:
         print(f"{size_bytes(p) / 1e6:7.0f} MB  {p.properties['fileName']}")
@@ -81,4 +89,4 @@ def main(dry_run: bool) -> None:
 
 
 if __name__ == "__main__":
-    main(dry_run="--dry-run" in sys.argv)
+    main(dry_run="--dry-run" in sys.argv, with_dataset="--dataset" in sys.argv)

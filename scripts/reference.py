@@ -116,3 +116,61 @@ def score_water_mask(is_water: np.ndarray, ref: np.ndarray, valid: np.ndarray, w
             "water_found_pct": None if found_water is None else round(100 * found_water, 1),
             "ice_found_pct": None if found_ice is None else round(100 * found_ice, 1),
             "balanced_accuracy_pct": round(100 * float(np.mean(both)), 1)}
+
+
+# ---------------------------------------------------------------------------------------------
+# Labels for training and testing: combine the references and keep only what is certain.
+# ---------------------------------------------------------------------------------------------
+ICE, OPEN_WATER, UNSURE = 1, 0, -1
+
+
+def certain_labels(conc: np.ndarray, water_below=15, ice_from=80, margin_cells=1) -> np.ndarray:
+    """Per reference cell: ICE, OPEN_WATER or UNSURE.
+
+    A cell counts only if it AND all neighbours within `margin_cells` agree (all >= ice_from, or all
+    < water_below, and no land). This drops the blurry ice edge, where a 3 km cell is a mix.
+    """
+    from scipy.ndimage import maximum_filter, minimum_filter
+    size = 2 * margin_cells + 1
+    known = np.isfinite(conc) & (conc != LAND)
+    filled_low, filled_high = np.where(known, conc, -np.inf), np.where(known, conc, np.inf)
+    lowest, highest = minimum_filter(filled_low, size, mode="nearest"), maximum_filter(filled_high, size, mode="nearest")
+    out = np.full(conc.shape, UNSURE, "int8")
+    out[known & (lowest >= ice_from)] = ICE
+    out[known & (highest < water_below)] = OPEN_WATER
+    return out
+
+
+def read_icesat2_ice(path, max_cloud_flag=1):
+    """Lon, lat of ICESat-2 ATL07 segments that are certainly ice or snow surface (all six beams).
+
+    Kept only if: surface type 'other' (not cloud, not a lead), good quality, good height fit, and the
+    atmosphere flags say clear. ATL07 has no data over open ocean, so it cannot confirm open water.
+    """
+    import h5py
+    lons, lats = [], []
+    with h5py.File(path, "r") as f:
+        for beam in ("gt1l", "gt1r", "gt2l", "gt2r", "gt3l", "gt3r"):
+            if beam not in f or "sea_ice_segments" not in f[beam]:
+                continue
+            g = f[f"{beam}/sea_ice_segments"]
+            h, st = g["heights"], g["stats"]
+            fit = h["height_segment_fit_quality_flag"][:]
+            good = ((h["height_segment_type"][:] == 1) & (h["height_segment_quality"][:] == 1) & (fit >= 1) & (fit <= 3)
+                    & (st["cloud_flag_asr"][:] <= max_cloud_flag) & (st["layer_flag"][:] == 0))
+            lons.append(g["longitude"][:][good])
+            lats.append(g["latitude"][:][good])
+    if not lons:
+        raise ValueError(f"no sea-ice beams in {path}")
+    return np.concatenate(lons), np.concatenate(lats)
+
+
+def points_to_mask(lon, lat, x, y, epsg: int) -> np.ndarray:
+    """Boolean grid (len(y), len(x)): True in pixels that contain at least one point."""
+    px, py = Transformer.from_crs(4326, epsg, always_xy=True).transform(lon, lat)
+    spacing = float(x[1] - x[0])
+    cols, rows = np.round((px - x[0]) / spacing).astype(int), np.round((y[0] - py) / spacing).astype(int)
+    inside = (rows >= 0) & (rows < len(y)) & (cols >= 0) & (cols < len(x))
+    mask = np.zeros((len(y), len(x)), bool)
+    mask[rows[inside], cols[inside]] = True
+    return mask

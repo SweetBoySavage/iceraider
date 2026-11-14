@@ -73,3 +73,42 @@ def test_score_counts_only_clear_reference_cells():
     assert only_ice["water_found_pct"] is None and only_ice["balanced_accuracy_pct"] == 50.0
     with pytest.raises(ValueError):
         score_water_mask(np.array([True]), np.array([50.0]), np.ones(1, bool))
+
+
+def test_certain_labels_drop_the_edge_and_land():
+    from scripts.reference import ICE, OPEN_WATER, UNSURE, certain_labels
+    conc = np.full((7, 9), 100.0)
+    conc[:, :4] = 0.0            # water on the left, ice on the right
+    conc[0, 8] = LAND
+    lab = certain_labels(conc)
+    assert lab[3, 0] == OPEN_WATER and lab[3, 2] == OPEN_WATER
+    assert lab[3, 3] == UNSURE and lab[3, 4] == UNSURE          # cells touching the edge
+    assert lab[3, 5] == ICE and lab[5, 8] == ICE
+    assert lab[0, 8] == UNSURE and lab[1, 7] == UNSURE          # land and its neighbours
+    assert (certain_labels(conc, margin_cells=0)[3, 3:5] == [OPEN_WATER, ICE]).all()
+
+
+def test_points_to_mask_marks_the_right_pixel():
+    from pyproj import Transformer
+    from scripts.reference import points_to_mask
+    x, y = np.arange(-1_000_000, -999_000, 80.0), np.arange(500_000, 499_000, -80.0)
+    lon, lat = Transformer.from_crs(3413, 4326, always_xy=True).transform([x[3] + 10, 0.0], [y[5] - 10, 0.0])
+    mask = points_to_mask(np.array(lon), np.array(lat), x, y, 3413)
+    assert mask.sum() == 1 and mask[5, 3]
+
+
+def test_icesat2_keeps_only_clear_good_ice_segments(tmp_path):
+    import h5py
+    from scripts.reference import read_icesat2_ice
+    p = tmp_path / "atl07.h5"
+    with h5py.File(p, "w") as f:
+        g = f.create_group("gt1l/sea_ice_segments")
+        g["longitude"], g["latitude"] = np.arange(5.0), np.arange(70.0, 75.0)
+        h, st = g.create_group("heights"), g.create_group("stats")
+        h["height_segment_type"] = np.array([1, 1, 2, 1, 1], "int8")              # index 2 is a lead
+        h["height_segment_quality"] = np.array([1, 0, 1, 1, 1], "int8")           # index 1 is bad quality
+        h["height_segment_fit_quality_flag"] = np.array([1, 1, 1, 5, 2], "int8")  # index 3 is a poor fit
+        st["cloud_flag_asr"] = np.array([0, 0, 0, 0, 4], "int8")                  # index 4 is cloudy
+        st["layer_flag"] = np.zeros(5, "int8")
+    lon, lat = read_icesat2_ice(p)
+    assert lon.tolist() == [0.0] and lat.tolist() == [70.0]

@@ -36,6 +36,7 @@ class GcovScene:
     epsg: int
     spacing_m: float
     noise_removed: bool
+    incidence: np.ndarray | None = None   # viewing angle from vertical, degrees, same grid (None if not in file)
 
 
 def list_polarisations(f: h5py.File) -> dict[str, str]:
@@ -71,6 +72,21 @@ def _noise_on_grid(f: h5py.File, freq: str, pol: str, y: np.ndarray, x: np.ndarr
     if ny[0] > ny[-1]:                       # interpolator needs ascending axes
         ny, values = ny[::-1], values[::-1]
     interp = RegularGridInterpolator((ny, nx), fill_nan_with_nearest(values), bounds_error=False, fill_value=None)
+    yy, xx = np.meshgrid(y, x, indexing="ij")
+    return interp((yy, xx)).astype("float32")
+
+
+def _incidence_on_grid(f: h5py.File, y: np.ndarray, x: np.ndarray):
+    """Incidence angle at sea level, interpolated from the coarse radar-geometry cube."""
+    name = f"{GCOV}/metadata/radarGrid"
+    if name not in f or "incidenceAngle" not in f[name]:
+        return None
+    g = f[name]
+    level = int(np.argmin(np.abs(g["heightAboveEllipsoid"][:])))
+    gy, gx, values = g["yCoordinates"][:], g["xCoordinates"][:], g["incidenceAngle"][level]
+    if gy[0] > gy[-1]:
+        gy, values = gy[::-1], values[::-1]
+    interp = RegularGridInterpolator((gy, gx), fill_nan_with_nearest(values), bounds_error=False, fill_value=None)
     yy, xx = np.meshgrid(y, x, indexing="ij")
     return interp((yy, xx)).astype("float32")
 
@@ -114,6 +130,7 @@ def load_gcov(path, pols=None, window=None, subtract_noise=True) -> GcovScene:
         for gx, gy, gepsg, _ in grids[1:]:
             if gepsg != epsg or gx.shape != x.shape or not (np.allclose(gx, x) and np.allclose(gy, y)):
                 raise ValueError("polarisations are on different grids; load them separately")
+        incidence = _incidence_on_grid(f, y, x)
 
     return GcovScene(name=path.stem, power=power, nesz=nesz, looks=looks, x=x, y=y, epsg=epsg,
-                     spacing_m=spacing, noise_removed=already_removed or subtract_noise)
+                     spacing_m=spacing, noise_removed=already_removed or subtract_noise, incidence=incidence)

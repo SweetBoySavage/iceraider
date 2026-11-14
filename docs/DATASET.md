@@ -7,7 +7,8 @@ All scenes are NISAR L2 GCOV, provisional, L-band, HH + VV, 80 m pixels. Machine
 - Search box: **70 - 78 N, 150 - 180 W** (Chukchi Sea and western Beaufort Sea).
 - Only scenes without land (under 0.5 % land in the AMSR2 map).
 
-- The chosen scenes actually cover 67.3 - 77.6 N, 189.9 - 179.6 W.
+- A scene is taken when it overlaps the box, so the chosen scenes reach a little further: about 67 - 78 N,
+  and in the west across the 180 degree line to about 170 E.
 
 ## Dates
 
@@ -30,7 +31,7 @@ All scenes are NISAR L2 GCOV, provisional, L-band, HH + VV, 80 m pixels. Machine
 | 17 Sep | 10:29 | edge | 76.3 N, 166.7 W | descending | yes | `162_D_046` |
 | 18 Sep | 09:47 | edge | 76.3 N, 156.3 W | descending | yes | `003_D_046` |
 | 18 Sep | 13:03 | all water | 73.3 N, 159.1 W | ascending | yes | `005_A_040` |
-| 20 Sep | 10:05 | edge | 75.2 N, 184.6 W | descending | yes | `032_D_048` |
+| 20 Sep | 10:05 | edge | 75.2 N, 175.4 E | descending | yes | `032_D_048` |
 | 21 Sep | 07:44 | all water | 74.4 N, 146.4 W | descending | yes | `045_D_049` |
 | 23 Sep | 09:40 | edge | 75.2 N, 169.2 W | descending | **no**, empty channel | `075_D_048` |
 | 25 Sep | 08:19 | all water | 69.2 N, 174.8 W | descending | yes | `103_D_053` |
@@ -40,7 +41,7 @@ All scenes are NISAR L2 GCOV, provisional, L-band, HH + VV, 80 m pixels. Machine
 | 05 Oct | 12:55 | edge | 73.3 N, 157.0 W | ascending | **no**, empty channel | `077_A_040` |
 | 10 Oct | 07:53 | edge | 73.3 N, 154.3 W | descending | yes | `146_D_050` |
 | 11 Oct | 13:44 | all water | 71.9 N, 163.9 W | ascending | yes | `164_A_039` |
-| 13 Oct | 10:46 | all ice | 75.9 N, 181.2 W | descending | yes | `018_D_047` |
+| 13 Oct | 10:46 | all ice | 75.9 N, 178.8 E | descending | yes | `018_D_047` |
 | 19 Oct | 08:18 | edge | 73.3 N, 160.5 W | descending | yes | `103_D_050` |
 | 19 Oct | 11:34 | all ice | 76.5 N, 173.2 W | ascending | yes | `105_A_045` |
 | 21 Oct | 06:55 | edge | 72.0 N, 145.3 W | descending | yes | `131_D_051` |

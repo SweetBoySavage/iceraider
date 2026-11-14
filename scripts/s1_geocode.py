@@ -22,7 +22,11 @@ from rasterio.warp import Resampling, reproject
 
 
 def href_to_path(href: str) -> str:
-    return unquote(urlparse(href).path) if href.startswith("file://") else href
+    if not href.startswith("file://"):
+        return href
+    path = unquote(urlparse(href).path)
+    # file:///C:/x parses to "/C:/x"; drop the slash before a Windows drive letter
+    return path[1:] if len(path) > 2 and path[0] == "/" and path[2] == ":" else path
 
 
 def calibration_table(xml_path: str):

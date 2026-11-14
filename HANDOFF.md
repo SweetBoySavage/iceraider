@@ -13,7 +13,7 @@ Goal: (1) detect sea ice in radar images, (2) track and predict where it moves.
 | App / interface | **Not started** |
 | Presentation | **Not started** |
 | Step-by-step notebook for NISAR | Not built (original notebook untouched) |
-| Branch `nisar-loader` -> `main` | Not merged, no pull request yet |
+| Branch `nisar-loader` -> `main` | Merged on 14 Nov (pull request #1). The land mask followed in a second pull request |
 
 ## Plan for 15 Nov (agreed with the user)
 
@@ -60,7 +60,7 @@ First building blocks for trajectory:
 | Why we chose this data | `docs/DATA_CHOICES.md` |
 | Code | `scripts/` (52 tests in `tests/`, run `.venv/bin/python -m pytest -q tests`) |
 | Tracking run | `scripts/run_chukchi.py` (writes MongoDB + `figures/chukchi_*.png`) |
-| Raw data (not in git) | `data/`, 13 GB. ICESat-2 files and the unused 28 Oct Sentinel-1 scene were deleted on 14 Nov; the scripts fetch ICESat-2 again if a table is rebuilt |
+| Raw data (not in git) | `data/`, about 13.5 GB. ICESat-2 files and the unused 28 Oct Sentinel-1 scene were deleted on 14 Nov; the scripts fetch ICESat-2 again if a table is rebuilt |
 
 ## Practical notes
 

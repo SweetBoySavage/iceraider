@@ -26,7 +26,7 @@ Status: **finished and frozen on 14 Nov 2026.** Do not tune the model on the tes
 - **Area:** Chukchi Sea and western Beaufort Sea, 70-78 N, 150-180 W. No land in any scene.
 - **Training:** 14 Sep - 28 Oct 2026, 24 scenes chosen, 22 used.
 - **Test:** 29 - 31 Oct 2026 (strictly later), 10 scenes chosen, 4 used.
-- The exact scene names are in `config/dataset.json`.
+- The exact scene list, with date, time, position and whether each scene was used, is in [DATASET.md](DATASET.md) (machine-readable: `config/dataset.json`).
 - **Quality gate:** a scene is skipped when one channel carries no signal (median below -60 dB).
   This removed 2 training and 6 test scenes. NISAR stopped recording HH+VV here around 1 Nov, and many
   scenes of 29-31 Oct already have one empty channel.

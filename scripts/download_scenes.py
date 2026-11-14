@@ -7,7 +7,9 @@ Run:  python scripts/download_scenes.py            # downloads everything in SCE
       python scripts/download_scenes.py --dry-run  # only lists names and sizes
 
 Area: Chukchi Sea / Chukchi Borderland pack ice, about 75.4-77.5 N, 160-170 W.
-The two NISAR passes are 1 day apart and overlap 93 %. Each has a Sentinel-1 pass ~8 h later.
+The two NISAR passes are 1 day apart and overlap 93 %.
+Sentinel-1: no pass covers the area on 28 Oct, so we use 26, 27 and 29 Oct (two tracking pairs
+that bracket the NISAR pair). Coverage of the NISAR overlap: 80 %, 89 % and 75 %.
 """
 from __future__ import annotations
 
@@ -26,8 +28,9 @@ SCENES = [
     "NISAR_L2_PR_GCOV_034_047_A_045_0505_SVSH_A_20261027T110140_20261027T110225_P05036_N_F_J_001",
     "NISAR_L2_PR_GCOV_034_061_D_046_0505_SVSH_A_20261028T102047_20261028T102122_P05036_N_F_J_001",
     # Sentinel-1 EW GRD medium resolution, C-band, HH+HV
+    "S1C_EW_GRDM_1SDH_20261026T174629_20261026T174729_010059_01413E_F4F5",
     "S1C_EW_GRDM_1SDH_20261027T182718_20261027T182818_010074_0141B9_7AA8",
-    "S1C_EW_GRDM_1SDH_20261028T190836_20261028T190936_010089_014239_2397",
+    "S1C_EW_GRDM_1SDH_20261029T181119_20261029T181148_010103_0142B0_965D",
 ]
 WANTED_LEVELS = ("GCOV", "GRD_MD")
 

@@ -7,6 +7,7 @@ Code: [`scripts/drift_model.py`](../scripts/drift_model.py) (the model),
 [`scripts/build_drift_training.py`](../scripts/build_drift_training.py) (training data),
 [`scripts/train_drift_model.py`](../scripts/train_drift_model.py) (fit and test),
 [`scripts/forecast_chukchi.py`](../scripts/forecast_chukchi.py) (forecast and NISAR check),
+[`scripts/forecast_osisaf_interp.py`](../scripts/forecast_osisaf_interp.py) (forecast map started from OSI SAF),
 [`scripts/wind.py`](../scripts/wind.py) (ERA5 wind). Tests: [`tests/test_drift_model.py`](../tests/test_drift_model.py).
 
 ## The model
@@ -126,6 +127,47 @@ the whole week (the distance stops growing after day 2), while persistence drift
 `figures/chukchi_drift_forecast_7day.png`: 7-day paths of one piece of ice per 25 km cell (31 of 176):
 model (orange, a dot per day), OSI SAF (blue dashed) and persistence (grey dotted).
 
+## Forecast map started from OSI SAF (10 km grid)
+
+NISAR covers only where it passes. To forecast the whole area, `forecast_osisaf_interp.py` starts from an
+OSI SAF drift map instead:
+
+1. **Starting drift:** the OSI SAF map of 26 Oct 12:00 → 28 Oct 12:00 (ends at the forecast start, so it holds
+   nothing about the forecast days), interpolated linearly from its 62.5 km cells to a **10 km grid** over the
+   Chukchi / Beaufort box (5,300 points).
+2. **Wind:** ERA5, interpolated to the same points.
+3. **Forecast:** the trained model, 48 h steps on the fixed grid, each step from the previous prediction.
+
+The model is not retrained for this: it is trained at the resolution the data was measured at (62.5 km) and
+applied at any point. Training on interpolated points would add no information, only copies of the same
+measurements.
+
+**Checked against NISAR-tracked drift.** Starting from OSI SAF interpolated to the Chukchi NISAR points gives a
+forecast as good as starting from the NISAR drift itself (28 → 29 Oct, 64 pieces of ice with a NISAR arrow,
+same wind):
+
+| Starting drift | Error vs NISAR-tracked drift, day 1 |
+|---|---|
+| **OSI SAF, interpolated** | **1.2 km** |
+| NISAR | 1.6 km |
+| none (wind only) | 1.3 km |
+
+The starting drift matters little because only about a quarter of it carries into the next step; the wind
+does the rest. This was a one-off check: the script ran it as "part A" in commit `466bfdc`; it was then removed
+to keep the script to the forecast map.
+
+**Checked against OSI SAF**, per 48 h step (vector error, km/day):
+
+| Lead | +2 d | +4 d | +6 d | +8 d | +10 d | +12 d |
+|---|---|---|---|---|---|---|
+| Model, 10 km grid | 3.4 | 4.3 | 4.2 | 3.7 | 4.3 | 4.0 |
+| Model, 62.5 km cells | 3.8 | 4.5 | 3.9 | 3.9 | 4.5 | 4.2 |
+| Persistence | 11.8 | 9.8 | 10.5 | 9.5 | 13.3 | 12.5 |
+
+The 10 km and 62.5 km scores are the same: the model is linear and drift and wind are interpolated linearly, so
+the 10 km forecast is the 62.5 km forecast interpolated afterwards. It gives a value at every point, not more
+detail. `figures/osisaf_interp_grid_forecast.png`: forecast speed (colour) and arrows per step.
+
 ## Run it
 
 ```bash
@@ -133,6 +175,7 @@ python scripts/download_scenes.py         # NISAR scenes, incl. the 29 and 30 Oc
 python scripts/build_drift_training.py    # OSI SAF + ERA5, ~350 small files, a few minutes; cached in data/
 python scripts/train_drift_model.py       # fit, held-out test, writes models/drift_model.json
 python scripts/forecast_chukchi.py        # NISAR tracking of 3 pairs, 2-day and 7-day forecasts, figures
+python scripts/forecast_osisaf_interp.py  # forecast map on a 10 km grid, started from OSI SAF
 python -m pytest tests/test_drift_model.py
 ```
 

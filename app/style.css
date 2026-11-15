@@ -1,3 +1,4 @@
+/* AI-generated: the code of this interface was written with Claude (Anthropic), an AI assistant, directed and checked by the team. */
 :root {
   --bg: #0a1018; --panel: #101926; --card: #162233; --line: #24344a; --text: #e6eef7; --dim: #9db0c6;
   --clear: #2ee6a6; --unverified: #9aa7b8; --ice: #ff4d4d; --land: #ffb300; --accent: #4cc2ff;
@@ -60,6 +61,9 @@ main { position: relative; flex: 1; min-width: 0; }
 #map.dragging { cursor: grabbing; }
 #cursor { position: absolute; top: 14px; left: 14px; background: #0a1018dd; border: 1px solid var(--line); border-radius: 9px; padding: 8px 16px;
   font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; pointer-events: none; }
+#ai-mark { position: absolute; top: 14px; right: 14px; background: #0a1018dd; border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px;
+  font-size: 15px; color: var(--text); pointer-events: none; }
+#ai-mark b { color: var(--land); letter-spacing: .04em; }
 #timeline { position: absolute; left: 14px; right: 14px; bottom: 14px; background: #101926f2; border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px 12px; }
 #timeline .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 #timeline button { font-size: 22px; font-weight: 700; padding: 10px 22px; min-width: 64px; border-radius: 10px; }

@@ -1,4 +1,5 @@
 "use strict";
+// AI-generated: the code of this interface was written with Claude (Anthropic), an AI assistant, directed and checked by the team.
 // Route interface: drawing and controls only. Whether a route is safe is decided by the server (scripts/route_safety.py).
 
 const $ = (id) => document.getElementById(id);

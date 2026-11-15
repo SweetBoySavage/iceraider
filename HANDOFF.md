@@ -90,4 +90,7 @@ First building blocks for trajectory:
   `scenes` (5), `results` (per-scene scores + test result), `ice_motion` (1,243 points). Never print the string.
 - Commits use the GitHub no-reply address (the repo is public). Work on a branch, never push to `main`.
 - Discord project channel: images were posted there on 14 Nov.
+- AI rule (Space Apps submission guide): AI tools are allowed; AI use must be declared in the submission; AI-generated
+  images and videos need a visible watermark; audio needs it in text and metadata; no NASA logos in generated content.
+  The interface carries a visible "AI-generated" mark. Any other AI-made image or video must get one too.
 - Before submitting: check citation wording for Uni Bremen, IABP, Copernicus, NASA DAACs, and the rule on declaring AI use.

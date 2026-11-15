@@ -52,7 +52,7 @@ The left side is numbered in the order you use it. It always fits on one screen 
 ## Controls
 
 - **Scenario:** switch between the two periods. Each has its own map and route. Both are loaded at the start.
-- **Show on the map:** check boxes for sea ice, route, both safety margins, radar image times and the latitude / longitude grid.
+- **Show on the map:** check boxes for sea ice, route, both safety margins, NISAR image dates and the latitude / longitude grid.
 - **Ship length** (m) and **speed** (knots).
 - **Margin around ice** and **around coast** (default 1,000 m each).
 - **Time:** slider, Play, or the arrow keys (left / right = one step back / forward; step is 1, 3, 6 or 12 h). Space = play.
@@ -124,6 +124,15 @@ Rules (all in `scripts/route_safety.py`):
   The clean-up was tested with pytest and by running the page script in Node. Expect small visual fixes.
 - Both default routes are NOT SAFE (Oct: ice at km 306; Sep: starts inside ice). Fine for a proof of concept.
 - September uses training scenes only, so the ice map looks better there than on new images.
+
+## AI use (Space Apps rule)
+
+- The code of this interface was written with an AI assistant (Claude, Anthropic), directed and checked by the team.
+- The page says so in three places: a visible mark at the top right of the map (it shows in every screenshot and
+  screen recording), a `meta` tag in the page, and a comment at the top of each file in `app/`.
+- The ice map itself is not generated content: it is the output of our own trained model on NISAR data.
+- The page uses no NASA logo, flag or mission identifier.
+- Still to do by the team: declare the AI use in the project submission form.
 
 ## Limits (say these in the presentation)
 

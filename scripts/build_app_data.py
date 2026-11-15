@@ -9,6 +9,9 @@ without the radar data):
 - cells.png     for drawing: red = class, green = image number
 - distance.png  for drawing the margins: red = distance to ice, green = distance to land, both in steps of 100 m
 - meta.json     grid, image times, default values, the route of the scenario
+
+Also writes app/data/world.json: a coarse outline of the land of the world (from the GSHHG coastline, LGPL), so the
+page can show where on Earth the map lies.
 """
 from __future__ import annotations
 
@@ -21,13 +24,15 @@ from scipy.ndimage import distance_transform_edt
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from scripts import detection, route_safety                                    # noqa: E402
+from scripts import detection, land_mask, route_safety                         # noqa: E402
 from scripts.build_mosaic import MAX_DISTANCE_M, load_mosaic                   # noqa: E402
 from scripts.evaluate_detection import LAND                                    # noqa: E402
 from scripts.run_app import APP_DATA, ARRAYS, load_bundle                      # noqa: E402,F401
 
 SCENARIOS = ROOT / "config" / "scenarios.json"
 PNG_STEP_M = 100                       # distance.png counts in steps of this size, 255 = 25.5 km or more
+WORLD_STEP_DEG = 0.2                   # the world outline keeps one coast point about every 20 km
+WORLD_MIN_COAST_DEG = 2.5              # islands with a shorter coast than this are left out of the world outline
 DEFAULTS = {"ship_m": 200.0, "speed_kn": 10.0, "ice_buffer_m": 1000.0}
 
 
@@ -37,6 +42,34 @@ def land_distance_m(classes: np.ndarray, cell_m: float, cap_m: int = MAX_DISTANC
     if not land.any():
         return np.full(classes.shape, cap_m, "uint16")
     return np.minimum(distance_transform_edt(~land) * cell_m, cap_m).astype("uint16")
+
+
+def thin_outline(lonlat: np.ndarray, step_deg: float) -> np.ndarray:
+    """A coast polygon with about one point every `step_deg` (degrees along the coast, east-west scaled by latitude)."""
+    lonlat = np.asarray(lonlat, float)
+    d_lon = np.diff(lonlat[:, 0]) * np.cos(np.radians(lonlat[:-1, 1]))
+    along = np.concatenate([[0.0], np.cumsum(np.hypot(d_lon, np.diff(lonlat[:, 1])))])
+    keep = np.unique(np.searchsorted(along, np.arange(0.0, along[-1], step_deg)))
+    return lonlat[keep]
+
+
+def world_outline(polygons: list[np.ndarray], step_deg: float = WORLD_STEP_DEG, min_coast_deg: float = WORLD_MIN_COAST_DEG) -> list[list[float]]:
+    """Coarse land polygons as flat lists [lon, lat, lon, lat, ...], two decimals. Small islands are dropped."""
+    out = []
+    for lonlat in polygons:
+        thin = thin_outline(lonlat, step_deg)
+        if len(thin) >= 4 and (len(thin) - 1) * step_deg >= min_coast_deg:
+            out.append(np.round(thin, 2).ravel().tolist())
+    return out
+
+
+def write_world(app_data: Path = APP_DATA, coast_file: Path = land_mask.GSHHG_FILE) -> Path:
+    if not Path(coast_file).exists():
+        raise FileNotFoundError(f"{coast_file} is missing. Run: python -c 'from scripts.land_mask import download; download()'")
+    world = {"source": "GSHHG 2.3.7 coastline (Wessel and Smith), LGPL, thinned", "polygons": world_outline(land_mask.read_gshhg(coast_file))}
+    out = Path(app_data) / "world.json"
+    out.write_text(json.dumps(world, separators=(",", ":")))
+    return out
 
 
 def make_bundle(mosaic: dict) -> dict:
@@ -119,5 +152,6 @@ if __name__ == "__main__":
     for scenario in scenarios:
         write(make_bundle(load_mosaic(scenario["first_day"], scenario["last_day"])), scenario)
     write_index(scenarios)
+    write_world()
     for f in sorted(p for p in APP_DATA.rglob("*") if p.is_file()):
         print(f"{f.stat().st_size / 1e6:6.2f} MB  {f.relative_to(ROOT)}")

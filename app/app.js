@@ -10,10 +10,10 @@ const BASE_COLOR = { [CLASS.ICE]: [232, 243, 250], [CLASS.WATER]: [15, 76, 117],
 const PARAMS = ["ship_m", "speed_kn", "ice_buffer_m", "coast_margin_m"];
 const KNOT_KMH = 1.852;
 const PLAY_HOURS_PER_SECOND = 6;
-const LAYERS = ["ice", "route", "iceMargin", "coastMargin", "images", "grid"];      // what the check boxes switch on and off
+const LAYERS = ["ice", "route", "iceMargin", "coastMargin", "images", "grid", "names", "globe"];      // what the check boxes switch on and off
 
 const state = { scenarios: {}, scenarioId: null, meta: null, cls: null, iceSteps: null, landSteps: null, base: null, overlay: null, params: {}, route: [], result: null,
-                hours: 0, playing: false, show: Object.fromEntries(LAYERS.map((k) => [k, true])), view: { scale: 1, ox: 0, oy: 0 }, drag: null, dirty: true, checkId: 0 };
+                hours: 0, playing: false, show: Object.fromEntries(LAYERS.map((k) => [k, true])), view: { scale: 1, ox: 0, oy: 0, rot: 0 }, world: [], land: [], drag: null, dirty: true, checkId: 0 };
 
 // ---------- map projection (EPSG:3413, polar stereographic, true at 70 N, 45 W down) ----------
 const PS = (() => {
@@ -38,8 +38,13 @@ const PS = (() => {
 })();
 const cellOf = (lat, lon) => { const [x, y] = PS.forward(lat, lon), m = state.meta; return [(x - m.x0) / m.cell_m, (m.y0 - y) / m.cell_m]; };
 const latLonOf = (col, row) => { const m = state.meta; return PS.inverse(m.x0 + col * m.cell_m, m.y0 - row * m.cell_m); };
-const toScreen = (col, row) => [col * state.view.scale + state.view.ox, row * state.view.scale + state.view.oy];
-const toCell = (sx, sy) => [(sx - state.view.ox) / state.view.scale, (sy - state.view.oy) / state.view.scale];
+// The map is turned by view.rot so that north is up in the middle of the route, as on a normal world map.
+const toScreen = (col, row) => { const v = state.view, c = Math.cos(v.rot), s = Math.sin(v.rot); return [(col * c - row * s) * v.scale + v.ox, (col * s + row * c) * v.scale + v.oy]; };
+const toCell = (sx, sy) => { const v = state.view, c = Math.cos(v.rot), s = Math.sin(v.rot), x = (sx - v.ox) / v.scale, y = (sy - v.oy) / v.scale; return [x * c + y * s, -x * s + y * c]; };
+const PLACES = [                                // [name, lat, lon, kind]
+  ["ALASKA (USA)", 68.3, -153, "land"], ["RUSSIA", 67.3, -183, "land"], ["CANADA", 67.5, -133, "land"],
+  ["Chukchi Sea", 70.3, -168.5, "sea"], ["Beaufort Sea", 71.6, -146, "sea"], ["East Siberian Sea", 72.3, -196, "sea"],
+  ["Arctic Ocean", 78.5, -165, "sea"], ["Bering Strait", 65.8, -169, "sea"], ["Wrangel Island", 71.2, -179.6, "spot"], ["Utqiaġvik", 71.29, -156.79, "spot"]];
 
 // ---------- text ----------
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -72,7 +77,9 @@ async function loadPixels(url, width, height) {
 }
 
 async function load() {                         // every scenario is loaded before the page unlocks: switching is instant
-  progress(0.03, "Reading the list of scenarios…");
+  progress(0.02, "Reading the outline of the world…");
+  state.world = (await getJson("data/world.json")).polygons;
+  progress(0.04, "Reading the list of scenarios…");
   const list = await getJson("data/scenarios.json");
   for (const [k, item] of list.entries()) {
     const share = (step) => (k + step) / list.length * 0.85 + 0.05, dir = `data/${item.id}/`;
@@ -97,6 +104,11 @@ async function load() {                         // every scenario is loaded befo
 async function useScenario(id) {
   Object.assign(state, state.scenarios[id], { scenarioId: id, result: null, hours: 0 });
   state.overlay = new OffscreenCanvas(state.meta.nx, state.meta.ny);
+  const lons = state.meta.route.points_lat_lon.map((p) => p[1]);
+  state.midLon = lons.reduce((a, b) => a + b, 0) / lons.length;
+  state.view.rot = (state.midLon + 45) * Math.PI / 180;        // 45 W is "down" in the map grid; turn the middle of the route to "up"
+  state.land = state.world.filter((poly) => poly.some((v, i) => i % 2 && v > 40))          // land for the map: cell positions
+    .map((poly) => { const out = new Float32Array(poly.length); for (let i = 0; i < poly.length; i += 2) [out[i], out[i + 1]] = cellOf(Math.max(poly[i + 1], 25), poly[i]); return out; });
   setPlaying(false);
   $("scenario").value = id;
   $("scenario-note").textContent = `${state.meta.route.name}. ${state.meta.note}`;
@@ -203,13 +215,63 @@ function resize() {
 }
 
 function fitRoute() {
-  const pts = state.route.map(([lat, lon]) => cellOf(lat, lon));
-  const cols = pts.map((p) => p[0]), rows = pts.map((p) => p[1]);
-  const w = canvas.clientWidth, h = canvas.clientHeight - $("timeline").offsetHeight - 20, pad = 70;     // room for the time bar
-  const spanC = Math.max(...cols) - Math.min(...cols), spanR = Math.max(...rows) - Math.min(...rows);
-  const scale = Math.min((w - 2 * pad) / spanC, (h - 2 * pad) / spanR);
-  state.view = { scale, ox: w / 2 - scale * (Math.min(...cols) + spanC / 2), oy: h / 2 - scale * (Math.min(...rows) + spanR / 2) };
+  const v = state.view, w = canvas.clientWidth, h = canvas.clientHeight - $("timeline").offsetHeight - 20, pad = 70;     // room for the time bar
+  Object.assign(v, { scale: 1, ox: 0, oy: 0 });                      // with these, toScreen gives the turned map positions
+  const pts = state.route.map(([lat, lon]) => toScreen(...cellOf(lat, lon)));
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const spanX = Math.max(...xs) - Math.min(...xs), spanY = Math.max(...ys) - Math.min(...ys);
+  v.scale = Math.min((w - 2 * pad) / spanX, (h - 2 * pad) / spanY);
+  v.ox = w / 2 - v.scale * (Math.min(...xs) + spanX / 2); v.oy = h / 2 - v.scale * (Math.min(...ys) + spanY / 2);
   state.dirty = true;
+}
+
+function drawLand() {                           // the land of the world around the radar map, from the coarse outline
+  ctx.fillStyle = "#3a3e46"; ctx.beginPath();
+  for (const poly of state.land) {
+    for (let i = 0; i < poly.length; i += 2) { const [x, y] = toScreen(poly[i], poly[i + 1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.closePath();
+  }
+  ctx.fill();
+}
+
+function drawPlaces() {
+  ctx.textAlign = "center";
+  for (const [name, lat, lon, kind] of PLACES) {
+    const [x, y] = toScreen(...cellOf(lat, lon));
+    ctx.font = kind === "land" ? "700 15px system-ui" : kind === "sea" ? "italic 15px system-ui" : "13px system-ui";
+    ctx.fillStyle = kind === "land" ? "#c9d1dc" : kind === "sea" ? "#7fb6dc" : "#e6eef7";
+    if (kind === "spot") { ctx.beginPath(); ctx.arc(x, y, 3, 0, 2 * Math.PI); ctx.fill(); }
+    ctx.fillText(name, x, kind === "spot" ? y - 8 : y);
+  }
+  ctx.textAlign = "left";
+}
+
+function drawGlobe() {                          // where on Earth the map is: a small globe with the map view marked
+  const R = 92, cx = canvas.clientWidth - R - 22, cy = 70 + R, lat0 = 58 * Math.PI / 180, lon0 = state.midLon * Math.PI / 180;
+  const sin0 = Math.sin(lat0), cos0 = Math.cos(lat0);
+  const spot = (lat, lon) => {                  // orthographic view; points on the far side are moved to the rim
+    const p = lat * Math.PI / 180, d = lon * Math.PI / 180 - lon0, cp = Math.cos(p), sp = Math.sin(p), cd = Math.cos(d);
+    let x = cp * Math.sin(d), y = cos0 * sp - sin0 * cp * cd;
+    if (sin0 * sp + cos0 * cp * cd < 0) { const n = Math.hypot(x, y) || 1; x /= n; y /= n; }
+    return [cx + R * x, cy - R * y];
+  };
+  ctx.beginPath(); ctx.arc(cx, cy, R + 5, 0, 2 * Math.PI); ctx.fillStyle = "#0a1018dd"; ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.fillStyle = "#123a5a"; ctx.fill(); ctx.clip();
+  ctx.fillStyle = "#5d6673"; ctx.beginPath();
+  for (const poly of state.world) {
+    for (let i = 0; i < poly.length; i += 2) { const [x, y] = spot(poly[i + 1], poly[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.closePath();
+  }
+  ctx.fill();
+  const w = canvas.clientWidth, h = canvas.clientHeight, corners = [[0, 0], [w, 0], [w, h], [0, h]].map(([sx, sy]) => spot(...latLonOf(...toCell(sx, sy))));
+  ctx.beginPath(); corners.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
+  ctx.fillStyle = "#ff4d4d55"; ctx.fill(); ctx.strokeStyle = "#ff4d4d"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = "#e6eef7"; ctx.font = "600 11px system-ui"; ctx.textAlign = "center";
+  for (const [name, lat, lon] of [["North America", 50, -110], ["Asia", 58, 125], ["Pacific Ocean", 30, -165], ["North Pole", 90, 0]]) { const [x, y] = spot(lat, lon); ctx.fillText(name, x, y); }
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.strokeStyle = "#4cc2ff"; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = "#e6eef7"; ctx.font = "600 13px system-ui"; ctx.fillText("Red = this map", cx, cy + R + 22);
+  ctx.textAlign = "left";
 }
 
 function drawGraticule() {                      // each line gets one label, where it is lowest (longitude) or rightmost (latitude) on screen
@@ -288,7 +350,7 @@ function drawShip() {
   const ship = shipAt(state.hours), [x, y] = toScreen(ship.col, ship.row), p = state.params;
   const ring = (p.ship_m / 2 + p.ice_buffer_m) / state.meta.cell_m * state.view.scale;      // the ice clearance, to scale
   if (ring > 3) { ctx.strokeStyle = "#ffffff99"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(x, y, ring, 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]); }
-  ctx.save(); ctx.translate(x, y); ctx.rotate(ship.heading);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ship.heading + state.view.rot);
   ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(-9, 8); ctx.lineTo(-5, 0); ctx.lineTo(-9, -8); ctx.closePath();
   ctx.fillStyle = "#ffffff"; ctx.strokeStyle = STATUS_COLOR[ship.status]; ctx.lineWidth = 3; ctx.shadowColor = "#000"; ctx.shadowBlur = 8;
   ctx.fill(); ctx.shadowBlur = 0; ctx.stroke(); ctx.restore();
@@ -304,17 +366,21 @@ function drawScaleBar() {
 }
 
 function draw(now) {
-  const { scale, ox, oy } = state.view;
+  const { scale, ox, oy, rot } = state.view, k = dpr * scale, c = Math.cos(rot), s = Math.sin(rot);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = "#0a1018"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
-  ctx.imageSmoothingEnabled = scale < 1;
+  ctx.fillStyle = "#161d29"; ctx.fillRect(0, 0, canvas.width, canvas.height);          // same colour as "no radar image"
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawLand();
+  ctx.setTransform(k * c, k * s, -k * s, k * c, dpr * ox, dpr * oy);
+  ctx.imageSmoothingEnabled = true;
   ctx.drawImage(state.base, 0, 0); ctx.drawImage(state.overlay, 0, 0);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (state.show.grid) drawGraticule();
+  if (state.show.names) drawPlaces();
   if (state.show.images) drawSceneTimes();
   if (state.show.route) { drawRoute(); drawConflict(now); }
   drawShip(); drawScaleBar();
+  if (state.show.globe) drawGlobe();
 }
 
 function frame(now) {
@@ -370,7 +436,8 @@ function wire() {
     event.preventDefault();
     const [sx, sy] = pos(event), [col, row] = toCell(sx, sy), v = state.view;
     v.scale = Math.max(0.05, Math.min(v.scale * Math.exp(-event.deltaY * 0.0015), 12));
-    v.ox = sx - col * v.scale; v.oy = sy - row * v.scale; state.dirty = true;
+    const [x, y] = toScreen(col, row);                             // where that map point is after the zoom: move it back under the mouse
+    v.ox += sx - x; v.oy += sy - y; state.dirty = true;
   }, { passive: false });
   canvas.addEventListener("pointerdown", (event) => {
     const [sx, sy] = pos(event);

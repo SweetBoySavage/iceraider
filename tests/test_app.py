@@ -37,6 +37,16 @@ def test_land_distance_is_in_metres_and_capped():
     assert bad.land_distance_m(classes[:, 1:], 400.0, cap_m=1000).tolist() == [[1000, 1000, 1000]]
 
 
+def test_world_outline_thins_the_coast_and_drops_small_islands():
+    angle = np.linspace(0, 2 * np.pi, 2001)
+    big = np.column_stack([10 * np.cos(angle), 10 * np.sin(angle)])              # circle of 10 degrees around 0 N, 0 E
+    small = np.column_stack([100 + 0.1 * np.cos(angle), 0.1 * np.sin(angle)])
+    thin = bad.thin_outline(big, 1.0)
+    assert 55 <= len(thin) <= 66 and np.allclose(np.hypot(*thin.T), 10)         # about one point per degree, all on the coast
+    world = bad.world_outline([big, small], step_deg=1.0, min_coast_deg=5.0)
+    assert len(world) == 1 and len(world[0]) == 2 * len(thin) and world[0][:2] == [10.0, 0.0]
+
+
 def test_bundle_grid_starts_at_the_outer_corner_of_the_first_cell():
     m = mosaic()
     b = bad.make_bundle(m)

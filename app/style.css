@@ -44,6 +44,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: .2em 0 0; 
 .icezone-c { background: #ff5a3c; } .coastzone-c { background: #ffb300; }
 .route-c { background: linear-gradient(90deg, var(--clear) 34%, var(--unverified) 34% 66%, var(--ice) 66%); }
 .label-c { background: #0a1018; border-color: #cfe3f5; } .grid-c { background: repeating-linear-gradient(90deg, #ffffff55 0 1px, transparent 1px .34em); }
+.name-c { background: #3a3e46; border-color: #c9d1dc; } .globe-c { background: #123a5a; border-radius: 50%; border-color: var(--accent); }
 .key { display: flex; gap: 1.3em; margin-top: .55em; color: var(--dim); font-size: .92em; }
 .key span { display: flex; align-items: center; gap: .45em; }
 .foot { display: flex; gap: 1em; align-items: center; margin-top: .6em; }

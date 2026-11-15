@@ -47,12 +47,14 @@ The left side is numbered in the order you use it. It always fits on one screen 
 | Yellow band | Safety margin around the coast |
 | Route colour | Green = observed open water, grey dashes = no radar image, red = inside ice margin, yellow = inside coast margin |
 | Dashed ring around the ship | The ice clearance, to scale |
-| Labels on the map | Time (UTC) of the radar image used there |
+| Labels on the map | Date and time (UTC) of the radar image used there |
+| Small globe, top right | Where on Earth the map lies: the red patch is the part of the map you see |
+| Grey land and place names | The wider area (Alaska, Russia, the seas), from a coarse world outline |
 
 ## Controls
 
 - **Scenario:** switch between the two periods. Each has its own map and route. Both are loaded at the start.
-- **Show on the map:** check boxes for sea ice, route, both safety margins, NISAR image dates and the latitude / longitude grid.
+- **Show on the map:** check boxes for sea ice, route, both safety margins, NISAR image dates, the latitude / longitude grid, place names and the world locator.
 - **Ship length** (m) and **speed** (knots).
 - **Margin around ice** and **around coast** (default 1,000 m each).
 - **Time:** slider, Play, or the arrow keys (left / right = one step back / forward; step is 1, 3, 6 or 12 h). Space = play.
@@ -140,6 +142,8 @@ Rules (all in `scripts/route_safety.py`):
 - To add a scenario: add it to `config/scenarios.json`, then rebuild the map (below).
 - The margin is fixed. Later it can grow with ship speed, ice drift and the age of the image.
 - Distances are measured on the map: up to about 1 % off at 74 N.
+- The map is turned so that north is up in the middle of the route. Away from the middle, north leans a little.
+- World outline and coast: GSHHG 2.3.7 (Wessel and Smith), LGPL. The outline outside the radar map is coarse (a point every 20 km).
 - Ice / water close to the coast is not validated. The strip next to the coast counts as "not verified".
 
 ## Rebuild the map (only when the data or model changes)

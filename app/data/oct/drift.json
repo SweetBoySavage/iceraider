@@ -1,0 +1,32 @@
+{
+ "node_m": 10000.0,
+ "x0": -2104400.0,
+ "y0": 1774800.0,
+ "nx": 115,
+ "ny": 171,
+ "edges_utc": [
+  "2026-10-24T12:00:00Z",
+  "2026-10-26T12:00:00Z",
+  "2026-10-28T12:00:00Z",
+  "2026-10-30T12:00:00Z",
+  "2026-11-01T12:00:00Z",
+  "2026-11-03T12:00:00Z",
+  "2026-11-05T12:00:00Z",
+  "2026-11-07T12:00:00Z",
+  "2026-11-09T12:00:00Z"
+ ],
+ "windows": [
+  "observed OSI SAF",
+  "forecast",
+  "forecast",
+  "forecast",
+  "forecast",
+  "forecast",
+  "forecast",
+  "forecast"
+ ],
+ "horizon_utc": "2026-11-08T08:00:00Z",
+ "forecast_days": 12,
+ "units": "km/day along the map x and y axes (EPSG:3413)",
+ "source": "OSI SAF low-resolution drift (62.5 km, interpolated) + drift model with ERA5 wind"
+}

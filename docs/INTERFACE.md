@@ -34,7 +34,8 @@ The left side is numbered in the order you use it. It always fits on one screen 
 2. Read the **verdict**: safe or not, and how the route splits up. A button jumps to the first conflict.
    In the same box, the check boxes switch map items on and off.
 3. Change **ship length, speed and margins** with the sliders. The verdict updates at once.
-4. Press **Play** or the **arrow keys** to move the ship along the route.
+4. Press **Play** or the **arrow keys** to move the ship along the route. In October the ice moves too (12-day
+   drift forecast); **Leave later by** (0 - 12 days) checks the same route against the ice of a later day.
 5. **Drag a route point** to steer around the ice.
 
 ## What you see
@@ -47,7 +48,8 @@ The left side is numbered in the order you use it. It always fits on one screen 
 | Yellow band | Safety margin around the coast |
 | Route colour | Green = observed open water, grey dashes = no radar image, red = inside ice margin, yellow = inside coast margin |
 | Dashed ring around the ship | The ice clearance, to scale |
-| Labels on the map | Date and time (UTC) of the radar image used there |
+| Labels on the map | Date and time (UTC) of the radar image used there (they move with their image) |
+| Moving ice (October) | Every radar image drifts with the 12-day forecast from the moment it was taken; the clock sets where the ice is |
 | Grey land and place names | The wider area (Alaska, Russia, the seas), from a coarse world outline |
 
 ## Controls
@@ -57,6 +59,12 @@ The left side is numbered in the order you use it. It always fits on one screen 
 - **Ship length** (m) and **speed** (knots).
 - **Margin around ice** and **around coast** (default 1,000 m each).
 - **Time:** slider, Play, or the arrow keys (left / right = one step back / forward; step is 1, 3, 6 or 12 h). Space = play.
+  With a drift forecast (October) the clock runs 12 days from the scenario's departure; the ship waits at the start
+  until its own departure and at the end after it arrives.
+- **Leave later by** (October): 0 - 12 days, in steps of 6 h. The verdict is for that departure.
+- **Ice moves (forecast)** (October): off = every image as taken, as before (for comparison).
+- **Link to a moment:** `http://127.0.0.1:8000/#scenario=oct&delay=24&t=96` opens the page at clock hour 96 with a
+  1-day later departure.
 - **Route:** drag a route point. Scroll = zoom, drag the map = move.
 
 ## The verdict
@@ -76,6 +84,12 @@ Rules (all in `scripts/route_safety.py`):
 - Ice conflict: observed ice closer than half the ship + the ice margin.
 - Coast conflict: land closer than half the ship + the coast margin.
 - No radar image = not verified, never "safe".
+- **Moving ice (October):** every point of the route is checked at the moment the ship passes it, against the ice
+  where the drift forecast has moved it by then. Per point and per radar image (newest first) the server finds where
+  that ice came from and reads the map there. Land, the coast strip and the coast margin do not move. After the
+  12-day forecast nothing is known about the ice: "not verified". The page draws the ice with the same drift
+  (`app/drift.js` = `route_safety.displacement`, checked by a test), so the map and the verdict agree.
+- The route colours show this check at the ship's own time, not at the clock time on the screen.
 
 ## Data: two scenarios (`config/scenarios.json`)
 
@@ -104,14 +118,16 @@ Rules (all in `scripts/route_safety.py`):
 | Time slider, play, arrow keys | To follow the ship along the route |
 | Draggable route points | Little work, and lets you steer around ice |
 | "No radar image" as its own state | We do not call water safe that we never saw |
+| Moving ice, 12-day drift forecast (October) | The prediction is built (`docs/drift_forecast.md`); the check uses it |
+| "Leave later by" slider | Check the same route against the forecast ice of any of the next 12 days |
 | Maps committed to git | The app must start anywhere with one command |
 
 **Not added**
 
 | What | Why not |
 |---|---|
-| Moving ice | The trajectory prediction is not built yet. Every image is shown as taken |
-| Hourly ice frames | NISAR sees a spot at most 2 - 3 times in a week. Hourly frames must come from the prediction |
+| Moving ice in September | Only the newest map (October) gets the forecast; September stays as taken |
+| A forecast from today | NISAR has no HH + VV here after about 1 Nov, so there is no newer ice map than October |
 | Margin that grows with speed, drift and image age | Agreed to wait for the prediction. The margin is a fixed number for now |
 | Sentinel-1 or AMSR2 to fill gaps | Decision: NISAR only |
 | The 6 scenes of 29 - 31 Oct with a dead channel | The model needs HH and VV; one of them is empty there |
@@ -136,8 +152,11 @@ Rules (all in `scripts/route_safety.py`):
 
 ## Limits (say these in the presentation)
 
-- **The ice does not move yet.** Every image is shown as it was taken; images are up to 4 days apart.
-  The trajectory prediction will later give one ice map per time step.
+- **The drift forecast is coarse and best-case.** It starts from OSI SAF drift (62.5 km cells, interpolated to 10 km)
+  and uses ERA5, the wind that actually blew, not a wind forecast. Floes inside a 10 km cell move together;
+  the ice does not deform or melt; images are moved as a whole.
+- The drift model was trained on 70 - 80 N, 150 - 180 W in autumn; the October map reaches a little outside that.
+- Where two moved images overlap, the newest is shown and used.
 - To add a scenario: add it to `config/scenarios.json`, then rebuild the map (below).
 - The margin is fixed. Later it can grow with ship speed, ice drift and the age of the image.
 - Distances are measured on the map: up to about 1 % off at 74 N.
@@ -151,7 +170,10 @@ Rules (all in `scripts/route_safety.py`):
 python scripts/build_mosaic.py 20261027 20261031     # about 5 min each, needs the NISAR files in data/
 python scripts/build_mosaic.py 20260915 20260921
 python scripts/build_app_data.py                     # writes app/data/<scenario>/
+python scripts/build_app_drift.py                    # the 12-day ice drift for October (OSI SAF + ERA5, a few minutes)
 ```
+
+`build_app_drift.py` needs only `app/data/oct/meta.json` and the trained drift model, not the NISAR files.
 
 ## Files
 
@@ -159,6 +181,8 @@ python scripts/build_app_data.py                     # writes app/data/<scenario
 |---|---|
 | `scripts/build_mosaic.py` | Stitch the scene maps into one map |
 | `scripts/build_app_data.py` | Make the files the app loads |
-| `scripts/route_safety.py` | The safety rules |
+| `scripts/build_app_drift.py` | Make the 12-day ice drift for the app (`app/data/oct/drift.*`) |
+| `scripts/route_safety.py` | The safety rules, for static and moving ice |
+| `app/drift.js` | How far the ice has moved: the same formula as the server |
 | `scripts/run_app.py` | Small web server: page + `/api/check` |
 | `app/` | The page (plain HTML, CSS, JavaScript; no libraries) |

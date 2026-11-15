@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -30,7 +30,7 @@ from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from scripts.build_drift_training import BOX, NOMINAL, fetch_region           # noqa: E402
+from scripts.build_drift_training import BOX, NOMINAL, REGION_DIR, fetch_region, in_box  # noqa: E402
 from scripts.drift_model import east_north_to_map, vector_errors              # noqa: E402
 from scripts.forecast_chukchi import COLORS                                    # noqa: E402
 from scripts.run_chukchi import FIGS                                          # noqa: E402
@@ -47,15 +47,15 @@ OUT_JSON = ROOT / "models" / "osisaf_interp_result.json"
 class OsiField:
     """One OSI SAF 48 h window: velocity km/day (complex, map frame), interpolated anywhere."""
 
-    def __init__(self, start: date):
-        f = fetch_region(start)
+    def __init__(self, start: date, box=BOX, cache_dir=REGION_DIR):
+        f = fetch_region(start, box=box, cache_dir=cache_dir)
         if f is None:
             raise FileNotFoundError(f"no OSI SAF file for {start}")
         hrs = 48 + np.nan_to_num(f["dt1"] - f["dt0"]) / 3600
         v = (f["dX"] + 1j * f["dY"]) / (hrs / 24)
         self.lat, self.lon, self.v_grid = f["lat"], f["lon"], v
         self.ok = f["flag"] == NOMINAL
-        self.in_box = (f["lat"] >= BOX["lat"][0]) & (f["lat"] <= BOX["lat"][1]) & (f["lon"] >= BOX["lon"][0]) & (f["lon"] <= BOX["lon"][1])
+        self.in_box = in_box(f["lat"], f["lon"], box)
         px, py = TO_MAP.transform(f["lon"], f["lat"])
         self.px, self.py = px, py
         pts = np.column_stack([px[self.ok], py[self.ok]])
@@ -65,6 +65,33 @@ class OsiField:
     def at(self, x, y, fill=True):
         v = self.lin(x, y)
         return np.where(np.isfinite(v), v, self.near(x, y)) if fill else v
+
+
+def forecast_fields(start: date, steps: int, px, py, models=None, box=BOX, cache_dir=REGION_DIR) -> dict:
+    """Drift at map points (px, py; metres, EPSG:3413) for the observed OSI SAF window starting `start` (12:00 UTC)
+    and `steps` forecast windows of 48 h after it.
+
+    Returns edges (steps + 2 datetimes, UTC, naive), v (steps + 1, n) complex km/day (row 0 = observed OSI SAF,
+    interpolated; rows 1.. = model forecast) and observed (n) bool: inside the valid OSI SAF cells."""
+    full, _ = models or load_models()
+    edges = [datetime(start.year, start.month, start.day, 12) + timedelta(days=2 * k) for k in range(steps + 2)]
+    f0 = OsiField(start, box, cache_dir)
+    cells = f0.in_box & f0.ok
+    observed = np.isfinite(f0.at(px, py, fill=False))
+    v0 = f0.at(px, py)
+    bc = f0.in_box
+    t, east, north = fetch_hourly(f0.lat[bc], f0.lon[bc], f"{edges[0]:%Y-%m-%d}", f"{edges[-1]:%Y-%m-%d}")
+    wmap = east_north_to_map(east, north, f0.lon[bc][:, None])
+    pts = np.column_stack([f0.px[bc], f0.py[bc]])
+    winds = []
+    for a, b in zip(edges, edges[1:]):
+        w = window_mean(t, wmap, f"{a:%Y-%m-%dT%H}", f"{b:%Y-%m-%dT%H}", complete=True)   # raises if ERA5 is incomplete
+        lin = LinearNDInterpolator(pts, w)(px, py)
+        winds.append(np.where(np.isfinite(lin), lin, NearestNDInterpolator(pts, w)(px, py)))
+    v = np.stack([v0] + full.forecast(v0, winds))
+    print(f"forecast_fields: {len(px)} points from {cells.sum()} OSI SAF cells, observed {edges[0]:%d %b} -> {edges[1]:%d %b %H:%M}, "
+          f"forecast to {edges[-1]:%d %b %H:%M}")
+    return {"edges": edges, "v": v, "observed": observed}
 
 
 def forecast_grid(models):

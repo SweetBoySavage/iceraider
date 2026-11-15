@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime
 import threading
 import webbrowser
 from functools import partial
@@ -27,7 +28,22 @@ from scripts import route_safety                                   # noqa: E402
 APP = ROOT / "app"
 APP_DATA = APP / "data"
 ARRAYS = ("classes", "scene_index", "ice_distance_m", "land_distance_m")
+DRIFT_ARRAYS = ("u", "v", "observed", "edges_s")
 MAX_ROUTE_POINTS = 200
+
+
+def utc_seconds(text: str) -> float:
+    return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+
+
+def load_drift(path: Path) -> dict | None:
+    """The ice drift forecast of a scenario (app/data/<id>/drift.npz, made by scripts/build_app_drift.py), or None."""
+    if not Path(path).exists():
+        return None
+    with np.load(path) as f:
+        out = {k: f[k] for k in DRIFT_ARRAYS}
+        out |= {k: float(f[k]) for k in ("x0", "y0", "node_m", "horizon_s")}
+    return out
 
 
 def load_bundle(path: Path) -> dict:
@@ -54,16 +70,24 @@ def load_bundles(app_data: Path | None = None) -> dict[str, dict]:
         for name in ("cells.png", "distance.png", "meta.json"):
             if not (folder / name).exists():
                 raise FileNotFoundError(f"{folder / name} is missing. Run: python scripts/build_app_data.py")
-        bundles[scenario["id"]] = load_bundle(folder / "bundle.npz")
+        bundle = load_bundle(folder / "bundle.npz")
+        meta = json.loads((folder / "meta.json").read_text())
+        bundle["departure_s"] = utc_seconds(meta["route"]["departure_utc"])
+        bundle["scene_time_s"] = np.array([utc_seconds(sc["time_utc"]) for sc in meta["scenes"]])
+        bundle["drift"] = load_drift(folder / "drift.npz")
+        bundles[scenario["id"]] = bundle
     return bundles
 
 
 def parse_query(query: str) -> dict:
     """Scenario, numbers and route from
-    '?scenario=oct&ship_m=200&speed_kn=10&ice_buffer_m=1000&coast_margin_m=1000&route=lat,lon;lat,lon'."""
+    '?scenario=oct&ship_m=200&speed_kn=10&ice_buffer_m=1000&coast_margin_m=1000&route=lat,lon;lat,lon'
+    plus, optional, '&delay_h=24' (departure later than the scenario's, hours) and '&moving=0' (static ice)."""
     raw = {k: v[0] for k, v in parse_qs(query).items()}
     try:
         values = {k: float(raw[k]) for k in ("ship_m", "speed_kn", "ice_buffer_m", "coast_margin_m")}
+        values["delay_h"] = float(raw.get("delay_h", 0))
+        values["moving"] = raw.get("moving", "1") not in ("0", "false")
         points = [tuple(float(n) for n in pair.split(",")) for pair in raw["route"].split(";")]
         scenario = raw["scenario"]
     except KeyError as missing:
@@ -79,10 +103,16 @@ def answer(bundles: dict[str, dict], query: str) -> dict:
     if q["scenario"] not in bundles:
         raise ValueError(f"unknown scenario {q['scenario']!r}; there are: {sorted(bundles)}")
     bundle = bundles[q["scenario"]]
+    route_safety.check_inputs(delay_h=q["delay_h"])
+    depart_s = bundle.get("departure_s", 0.0) + q["delay_h"] * 3600
+    moving = q["moving"] and bundle.get("drift") is not None
     out = route_safety.check_route(bundle, route_safety.to_xy(q["route"], bundle["epsg"]),
-                                   q["ship_m"], q["ice_buffer_m"], q["coast_margin_m"])
+                                   q["ship_m"], q["ice_buffer_m"], q["coast_margin_m"],
+                                   speed_kn=q["speed_kn"], depart_s=depart_s, moving=moving)
     verdict = route_safety.verdict(out["dist_m"], out["status"], q["speed_kn"])
-    return {"verdict": verdict,
+    drift = bundle.get("drift")
+    return {"verdict": verdict, "moving": moving, "delay_h": q["delay_h"],
+            "forecast_end_h": None if drift is None else (drift["horizon_s"] - bundle["departure_s"]) / 3600,
             "km": np.round(out["dist_m"] / 1e3, 3).tolist(),
             "col": np.round((out["xy"][:, 0] - bundle["x0"]) / bundle["cell_m"], 2).tolist(),
             "row": np.round((bundle["y0"] - out["xy"][:, 1]) / bundle["cell_m"], 2).tolist(),

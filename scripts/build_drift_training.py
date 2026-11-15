@@ -44,23 +44,31 @@ def file_name(start: date) -> str:
     return f"ice_drift_nh_polstere-625_multi-oi_{start:%Y%m%d}1200-{end:%Y%m%d}1200.nc"
 
 
-def region_slices(ds):
-    lat, lon = ds.lat.values, ds.lon.values
-    box = (lat >= BOX["lat"][0]) & (lat <= BOX["lat"][1]) & (lon >= BOX["lon"][0]) & (lon <= BOX["lon"][1])
+def in_box(lat, lon, box=BOX):
+    """True inside the lat/lon box. Longitudes may cross the date line, e.g. (-190, -135)."""
+    lo, hi = box["lon"]
+    lon_w = (np.asarray(lon) - lo) % 360 + lo
+    return (np.asarray(lat) >= box["lat"][0]) & (np.asarray(lat) <= box["lat"][1]) & (lon_w <= hi)
+
+
+def region_slices(ds, box=BOX):
+    box = in_box(ds.lat.values, ds.lon.values, box)
     r, c = np.where(box)
     return slice(r.min(), r.max() + 1), slice(c.min(), c.max() + 1), box[r.min():r.max() + 1, c.min():c.max() + 1]
 
 
-def fetch_region(start: date, rows=None, cols=None):
-    """Region subset of one OSI SAF file as a dict of arrays, cached; None if the file does not exist."""
-    out = REGION_DIR / f"{start:%Y%m%d}.npz"
+def fetch_region(start: date, rows=None, cols=None, box=BOX, cache_dir=REGION_DIR):
+    """Box subset of one OSI SAF file as a dict of arrays, cached in cache_dir; None if the file does not exist.
+    A box other than BOX needs its own cache_dir."""
+    cache_dir = Path(cache_dir)
+    out = cache_dir / f"{start:%Y%m%d}.npz"
     if out.exists():
         z = np.load(out)
         return {k: z[k] for k in z.files} if z.files else None
-    REGION_DIR.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
     end = start + timedelta(days=2)
     url = f"{OSI}/{end:%Y}/{end:%m}/{file_name(start)}"
-    tmp = REGION_DIR / "_download.nc"
+    tmp = cache_dir / "_download.nc"
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=120) as r, open(tmp, "wb") as f:
             f.write(r.read())
@@ -71,7 +79,7 @@ def fetch_region(start: date, rows=None, cols=None):
         raise
     with xr.open_dataset(tmp, decode_timedelta=False) as ds:
         if rows is None:
-            rows, cols, _ = region_slices(ds)
+            rows, cols, _ = region_slices(ds, box)
         sub = ds.isel(yc=rows, xc=cols)
         data = dict(dX=sub.dX.values[0].astype("float64"), dY=sub.dY.values[0].astype("float64"),
                     flag=sub.status_flag.values[0].astype("int16"),

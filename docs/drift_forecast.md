@@ -172,6 +172,18 @@ The 10 km and 62.5 km scores are the same: the model is linear and drift and win
 the 10 km forecast is the 62.5 km forecast interpolated afterwards. It gives a value at every point, not more
 detail. `figures/osisaf_interp_grid_forecast.png`: forecast speed (colour) and arrows per step.
 
+## In the route app (moving ice)
+
+The route interface (`docs/INTERFACE.md`) moves the October ice map with this forecast for 12 days:
+
+- `scripts/build_app_drift.py` runs `forecast_fields()` (from `forecast_osisaf_interp.py`) on a 10 km grid over the
+  whole October map: observed OSI SAF drift of 24 → 26 Oct (the last window that ends before the departure,
+  27 Oct 08:00), then 7 model steps of 48 h to 9 Nov 12:00, which covers departure + 12 days.
+- Each NISAR image drifts from the moment it was taken. The ship is checked at the moment it passes each point,
+  against the ice where it has drifted by then (`route_safety.py`); the page draws the ice with the same formula
+  (`app/drift.js`, checked against Python by a test).
+- A "Leave later by" slider (0 - 12 days) checks the same route against the ice of a later day.
+
 ## Run it
 
 ```bash

@@ -160,3 +160,69 @@ def test_server_serves_the_page_and_answers_the_check():
     finally:
         server.shutdown()
         server.server_close()
+
+
+# ---------- moving ice ----------
+def test_drift_windows_never_look_past_the_departure_and_cover_12_days():
+    from datetime import date, datetime, timezone
+    from scripts.build_app_drift import choose_windows
+    assert choose_windows(datetime(2026, 10, 27, 8, tzinfo=timezone.utc)) == (date(2026, 10, 24), 7)   # ends 26 Oct 12:00
+    assert choose_windows(datetime(2026, 10, 27, 12, tzinfo=timezone.utc)) == (date(2026, 10, 25), 6)  # ends exactly at departure
+
+
+def small_drift(folder):
+    """A uniform drift of 10 km/day along map x over the test map, one window of 30 days from 27 Oct."""
+    start = run_app.utc_seconds("2026-10-27T00:00:00Z")
+    np.savez(folder / "drift.npz", u=np.full((1, 2, 2), 10.0, "float32"), v=np.zeros((1, 2, 2), "float32"),
+             observed=np.ones((2, 2), bool), edges_s=np.array([start, start + 30 * 86_400.0]), horizon_s=start + 12 * 86_400.0,
+             x0=-3e6, y0=3e6, node_m=6e6)
+
+
+def test_drift_is_loaded_when_present_and_the_check_takes_delay_and_moving(tmp_path):
+    folder = bad.write(bad.make_bundle(mosaic()), SCENARIO, tmp_path)
+    bad.write_index([SCENARIO], tmp_path)
+    assert run_app.load_bundles(tmp_path)["demo"]["drift"] is None                  # no drift file: static, as before
+    small_drift(folder)
+    bundles = run_app.load_bundles(tmp_path)
+    assert bundles["demo"]["drift"]["u"].shape == (1, 2, 2) and bundles["demo"]["scene_time_s"].shape == (1,)
+    moving = run_app.answer(bundles, QUERY)
+    static = run_app.answer(bundles, QUERY + "&moving=0")
+    assert moving["moving"] and not static["moving"] and static["status"] == [rs.CLEAR, rs.CLEAR, rs.ICE_HIT]
+    assert moving["forecast_end_h"] == pytest.approx(12 * 24 - 8)                     # departure 27 Oct 08:00
+    later = run_app.answer(bundles, QUERY + "&delay_h=48")
+    assert later["delay_h"] == 48 and later["status"] != static["status"]           # 2 days later the ice has moved 20 km away
+    with pytest.raises(ValueError):
+        run_app.answer(bundles, QUERY + "&delay_h=400")
+
+
+def test_real_october_map_has_a_drift_forecast_and_both_checks_run():
+    bundles = run_app.load_bundles()
+    assert bundles["oct"]["drift"] is not None and bundles["sep"]["drift"] is None
+    route = ";".join(f"{lat},{lon}" for lat, lon in json.loads((run_app.APP_DATA / "oct" / "meta.json").read_text())["route"]["points_lat_lon"])
+    base = f"scenario=oct&ship_m=200&speed_kn=10&ice_buffer_m=1000&coast_margin_m=1000&route={route}"
+    for extra in ("", "&moving=0", "&delay_h=120"):
+        out = run_app.answer(bundles, base + extra)
+        assert out["verdict"]["state"] in ("blocked", "clear", "clear_where_observed", "no_data")
+
+
+def test_page_and_server_move_the_ice_the_same_way():
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is not installed")
+    rng = np.random.default_rng(0)
+    w, ny, nx = 3, 4, 5
+    data = rng.normal(0, 8, (w, 2, ny, nx)).astype("float32")
+    d = {"u": data[:, 0], "v": data[:, 1], "x0": -50_000.0, "y0": 40_000.0, "node_m": 10_000.0,
+         "edges_s": np.array([0.0, 2, 4, 6]) * 86_400}
+    pts = [(-37_000.0, 12_000.0, 0.3, 4.4), (5_000.0, -3_000.0, 5.5, 1.0), (-90_000.0, 90_000.0, -1.0, 7.0)]
+    py = [rs.displacement(d, [x], [y], a * 86_400, b * 86_400) for x, y, a, b in pts]
+    script = ("const D = require(%s); const d = %s; d.data = new Float32Array(d.data);"
+              "console.log(JSON.stringify(%s.map(([x, y, a, b]) => D.displacement(d, x, y, a * 86400, b * 86400))));") % (
+        json.dumps(str(run_app.APP / "drift.js")),
+        json.dumps({"x0": d["x0"], "y0": d["y0"], "node_m": d["node_m"], "nx": nx, "ny": ny,
+                    "edges_s": d["edges_s"].tolist(), "data": data.ravel().tolist()}), json.dumps(pts))
+    js = json.loads(subprocess.run([node, "-e", script], capture_output=True, text=True, check=True).stdout)
+    for (dx, dy), (jx, jy) in zip(py, js):
+        assert jx == pytest.approx(dx[0], abs=0.05) and jy == pytest.approx(dy[0], abs=0.05)

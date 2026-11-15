@@ -19,8 +19,14 @@
   <header>
     <div class="brand">ICE RAIDER</div>
     <div class="sub">Ship route check on NISAR radar ice maps</div>
-    <div class="sub" id="route-name"></div>
   </header>
+
+  <section class="card">
+    <h2>Scenario</h2>
+    <select id="scenario"></select>
+    <div class="sub" id="route-name"></div>
+    <div class="note" id="scenario-note"></div>
+  </section>
 
   <section id="verdict" class="card">
     <div id="verdict-state">…</div>
@@ -59,7 +65,7 @@
     <div><i class="sw land-c"></i>Land</div>
     <div><i class="sw icezone-c"></i>Ice safety margin</div>
     <div><i class="sw coastzone-c"></i>Coast safety margin</div>
-    <p class="note">The ice does not move yet: every radar image is shown as it was taken (27–31 Oct 2026).
+    <p class="note">The ice does not move yet: every radar image is shown as it was taken.
       Drag a route point to change the route. Scroll to zoom, drag to move the map.</p>
   </section>
 </aside>

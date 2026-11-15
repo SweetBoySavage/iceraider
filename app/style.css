@@ -32,6 +32,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 4px 0 0; }
 button, select { background: #1d2c41; color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 6px 12px; font: inherit; cursor: pointer; }
 button:hover { border-color: var(--accent); }
 #jump, #reset { width: 100%; margin-top: 10px; }
+#scenario { width: 100%; margin-bottom: 6px; }
 
 .legend div { margin: 3px 0; }
 .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 8px; vertical-align: -2px; border: 1px solid #ffffff22; }

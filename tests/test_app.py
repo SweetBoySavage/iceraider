@@ -16,6 +16,7 @@ from scripts.evaluate_detection import LAND, NO_DATA, OPEN_WATER, SEA_ICE
 
 NAME = "NISAR_L2_PR_GCOV_034_045_D_051_0505_SVSH_A_20261027T074517_20261027T074554_P05036_N_F_J_001"
 ROUTE = {"name": "test", "departure_utc": "2026-10-27T08:00:00Z", "points_lat_lon": [[72.0, -170.0], [72.0, -169.9]]}
+SCENARIO = {"id": "demo", "label": "Demo", "note": "A note", "first_day": "20261027", "last_day": "20261031", "route": ROUTE}
 
 
 def mosaic():
@@ -53,28 +54,54 @@ def test_pictures_carry_class_image_number_and_distances_in_steps_of_100_m():
 
 def test_written_files_load_again_and_meta_describes_them(tmp_path):
     bundle = bad.make_bundle(mosaic())
-    bad.write(bundle, ROUTE, tmp_path)
-    back = bad.load_bundle(tmp_path / "bundle.npz")
+    folder = bad.write(bundle, SCENARIO, tmp_path)
+    bad.write_index([SCENARIO], tmp_path)
+    assert folder == tmp_path / "demo" and json.loads((tmp_path / "scenarios.json").read_text()) == [{"id": "demo", "label": "Demo"}]
+    back = run_app.load_bundles(tmp_path)["demo"]
     assert all(np.array_equal(back[k], bundle[k]) for k in bad.ARRAYS)
     assert back["scenes"] == [NAME] and back["x0"] == bundle["x0"] and back["cell_m"] == 400.0
-    meta = json.loads((tmp_path / "meta.json").read_text())
-    assert (meta["nx"], meta["ny"]) == (4, 3) and meta["route"] == ROUTE
+    meta = json.loads((folder / "meta.json").read_text())
+    assert (meta["nx"], meta["ny"]) == (4, 3) and meta["route"] == ROUTE and (meta["id"], meta["note"]) == ("demo", "A note")
     assert meta["scenes"] == [{"name": NAME, "time_utc": "2026-10-27T07:45:17Z", "col": 2.0, "row": 0.5}]
     assert meta["defaults"]["coast_margin_m"] == 1000.0 and meta["limits"]["ship_m"] == [1.0, 500.0]
     from PIL import Image
-    assert Image.open(tmp_path / "cells.png").size == (4, 3) and Image.open(tmp_path / "distance.png").mode == "RGB"
+    assert Image.open(folder / "cells.png").size == (4, 3) and Image.open(folder / "distance.png").mode == "RGB"
+
+
+def test_app_refuses_to_start_without_its_files(tmp_path):
     with pytest.raises(FileNotFoundError):
-        bad.load_bundle(tmp_path / "nothing.npz")
+        run_app.load_bundles(tmp_path)                                    # no list of scenarios
+    folder = bad.write(bad.make_bundle(mosaic()), SCENARIO, tmp_path)
+    bad.write_index([SCENARIO], tmp_path)
+    (folder / "cells.png").unlink()
+    with pytest.raises(FileNotFoundError):
+        run_app.load_bundles(tmp_path)
 
 
-def test_route_file_with_one_point_or_bad_numbers_is_refused(tmp_path):
-    path = tmp_path / "route.json"
-    path.write_text(json.dumps(ROUTE | {"points_lat_lon": [[72.0, -170.0]]}))
+@pytest.mark.parametrize("change", [
+    lambda s: s["route"].update(points_lat_lon=[[72.0, -170.0]]),                       # one point
+    lambda s: s["route"].update(points_lat_lon=[[172.0, -170.0], [72.0, -170.0]]),      # no such latitude
+    lambda s: s.update(id="de mo"),
+    lambda s: s.pop("note"),
+    lambda s: s["route"].pop("departure_utc"),
+])
+def test_broken_scenario_file_is_refused(tmp_path, change):
+    path = tmp_path / "scenarios.json"
+    scenario = json.loads(json.dumps(SCENARIO))
+    path.write_text(json.dumps([scenario]))
+    assert bad.read_scenarios(path)[0]["id"] == "demo"
+    change(scenario)
+    path.write_text(json.dumps([scenario]))
     with pytest.raises(ValueError):
-        bad.read_route(path)
-    path.write_text(json.dumps(ROUTE | {"points_lat_lon": [[172.0, -170.0], [72.0, -170.0]]}))
+        bad.read_scenarios(path)
+
+
+def test_scenario_ids_must_be_unique_and_the_real_file_is_valid(tmp_path):
+    path = tmp_path / "scenarios.json"
+    path.write_text(json.dumps([SCENARIO, SCENARIO]))
     with pytest.raises(ValueError):
-        bad.read_route(path)
+        bad.read_scenarios(path)
+    assert [s["id"] for s in bad.read_scenarios()] == ["oct", "sep"]
 
 
 def query_along_the_top_row():
@@ -82,7 +109,7 @@ def query_along_the_top_row():
     from pyproj import Transformer
     x, y = rs.to_xy([(72.0, -170.0)])[0]
     lon, lat = Transformer.from_crs(3413, 4326, always_xy=True).transform(x + 800, y)
-    return f"ship_m=100&speed_kn=10&ice_buffer_m=0&coast_margin_m=0&route=72.0,-170.0;{lat:.7f},{lon:.7f}"
+    return f"scenario=demo&ship_m=100&speed_kn=10&ice_buffer_m=0&coast_margin_m=0&route=72.0,-170.0;{lat:.7f},{lon:.7f}"
 
 
 QUERY = query_along_the_top_row()
@@ -90,14 +117,18 @@ QUERY = query_along_the_top_row()
 
 def test_query_is_parsed_and_broken_queries_are_refused():
     q = run_app.parse_query(QUERY)
-    assert q["ship_m"] == 100 and q["speed_kn"] == 10 and q["route"][0] == (72.0, -170.0) and len(q["route"]) == 2
-    for broken in ("ship_m=100", QUERY.replace("72.0,-170.0;", ""), QUERY.replace("ship_m=100", "ship_m=big"), QUERY + ";1,2,3"):
+    assert q["scenario"] == "demo" and q["ship_m"] == 100 and q["speed_kn"] == 10 and q["route"][0] == (72.0, -170.0) and len(q["route"]) == 2
+    for broken in ("ship_m=100", QUERY.replace("72.0,-170.0;", ""), QUERY.replace("ship_m=100", "ship_m=big"), QUERY + ";1,2,3",
+                   QUERY.replace("scenario=demo&", "")):
         with pytest.raises(ValueError):
             run_app.parse_query(broken)
 
 
 def test_answer_gives_the_verdict_and_the_points_in_cell_positions():
-    out = run_app.answer(bad.make_bundle(mosaic()), QUERY)
+    bundles = {"demo": bad.make_bundle(mosaic())}
+    with pytest.raises(ValueError):
+        run_app.answer(bundles, QUERY.replace("scenario=demo", "scenario=other"))
+    out = run_app.answer(bundles, QUERY)
     assert out["verdict"]["state"] == "blocked" and out["verdict"]["first_conflict"]["kind"] == "ice"
     assert out["col"][0] == pytest.approx(1.5) and out["row"][0] == pytest.approx(1.5)     # the route starts in cell (1, 1)
     assert out["col"][-1] == pytest.approx(3.5, abs=0.01) and out["row"][-1] == pytest.approx(1.5, abs=0.01)
@@ -106,13 +137,8 @@ def test_answer_gives_the_verdict_and_the_points_in_cell_positions():
     json.dumps(out)                                                       # everything must be plain JSON
 
 
-def test_server_serves_the_page_and_answers_the_check(tmp_path, monkeypatch):
-    bundle = bad.make_bundle(mosaic())
-    monkeypatch.setattr(run_app, "APP_DATA", tmp_path)
-    with pytest.raises(FileNotFoundError):
-        run_app.make_server(0, bundle)                                    # no app data: refuse to start
-    bad.write(bundle, ROUTE, tmp_path)
-    server = run_app.make_server(0, bundle)
+def test_server_serves_the_page_and_answers_the_check():
+    server = run_app.make_server(0, {"demo": bad.make_bundle(mosaic())})
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_address[1]}"
     try:

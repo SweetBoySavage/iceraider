@@ -29,9 +29,9 @@ ARRAYS = ("classes", "scene_index", "ice_distance_m", "land_distance_m")
 MAX_ROUTE_POINTS = 200
 
 
-def load_bundle(path: Path | None = None) -> dict:
-    """The map the safety check reads (app/data/bundle.npz, made by scripts/build_app_data.py)."""
-    path = Path(path) if path else APP_DATA / "bundle.npz"
+def load_bundle(path: Path) -> dict:
+    """The map the safety check reads for one scenario (app/data/<id>/bundle.npz, made by scripts/build_app_data.py)."""
+    path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"{path} is missing. Run: python scripts/build_mosaic.py, then python scripts/build_app_data.py")
     with np.load(path) as f:
@@ -41,22 +41,43 @@ def load_bundle(path: Path | None = None) -> dict:
     return out
 
 
+def load_bundles(app_data: Path | None = None) -> dict[str, dict]:
+    """Every scenario listed in app/data/scenarios.json, by id. Refuses to start when a file of the page is missing."""
+    app_data = Path(app_data) if app_data else APP_DATA
+    index = app_data / "scenarios.json"
+    if not index.exists():
+        raise FileNotFoundError(f"{index} is missing. Run: python scripts/build_app_data.py")
+    bundles = {}
+    for scenario in json.loads(index.read_text()):
+        folder = app_data / scenario["id"]
+        for name in ("cells.png", "distance.png", "meta.json"):
+            if not (folder / name).exists():
+                raise FileNotFoundError(f"{folder / name} is missing. Run: python scripts/build_app_data.py")
+        bundles[scenario["id"]] = load_bundle(folder / "bundle.npz")
+    return bundles
+
+
 def parse_query(query: str) -> dict:
-    """Numbers and route from '?ship_m=200&speed_kn=10&ice_buffer_m=1000&coast_margin_m=1000&route=lat,lon;lat,lon'."""
+    """Scenario, numbers and route from
+    '?scenario=oct&ship_m=200&speed_kn=10&ice_buffer_m=1000&coast_margin_m=1000&route=lat,lon;lat,lon'."""
     raw = {k: v[0] for k, v in parse_qs(query).items()}
     try:
         values = {k: float(raw[k]) for k in ("ship_m", "speed_kn", "ice_buffer_m", "coast_margin_m")}
         points = [tuple(float(n) for n in pair.split(",")) for pair in raw["route"].split(";")]
+        scenario = raw["scenario"]
     except KeyError as missing:
         raise ValueError(f"missing value: {missing.args[0]}") from None
     if any(len(p) != 2 for p in points) or not 2 <= len(points) <= MAX_ROUTE_POINTS:
         raise ValueError(f"route must be 2 to {MAX_ROUTE_POINTS} 'lat,lon' pairs separated by ';'")
-    return values | {"route": points}
+    return values | {"route": points, "scenario": scenario}
 
 
-def answer(bundle: dict, query: str) -> dict:
+def answer(bundles: dict[str, dict], query: str) -> dict:
     """The reply to /api/check: the verdict plus every sampled point (map cell position, status, image number)."""
     q = parse_query(query)
+    if q["scenario"] not in bundles:
+        raise ValueError(f"unknown scenario {q['scenario']!r}; there are: {sorted(bundles)}")
+    bundle = bundles[q["scenario"]]
     out = route_safety.check_route(bundle, route_safety.to_xy(q["route"], bundle["epsg"]),
                                    q["ship_m"], q["ice_buffer_m"], q["coast_margin_m"])
     verdict = route_safety.verdict(out["dist_m"], out["status"], q["speed_kn"])
@@ -68,14 +89,14 @@ def answer(bundle: dict, query: str) -> dict:
 
 
 class Handler(SimpleHTTPRequestHandler):
-    bundle: dict = {}
+    bundles: dict = {}
 
     def do_GET(self):
         url = urlparse(self.path)
         if url.path != "/api/check":
             return super().do_GET()
         try:
-            code, body = 200, answer(self.bundle, url.query)
+            code, body = 200, answer(self.bundles, url.query)
         except ValueError as error:
             code, body = 400, {"error": str(error)}
         data = json.dumps(body).encode()
@@ -93,11 +114,8 @@ class Handler(SimpleHTTPRequestHandler):
         pass
 
 
-def make_server(port: int, bundle: dict) -> ThreadingHTTPServer:
-    for name in ("cells.png", "distance.png", "meta.json"):
-        if not (APP_DATA / name).exists():
-            raise FileNotFoundError(f"{APP_DATA / name} is missing. Run: python scripts/build_app_data.py")
-    handler = type("AppHandler", (Handler,), {"bundle": bundle})
+def make_server(port: int, bundles: dict[str, dict]) -> ThreadingHTTPServer:
+    handler = type("AppHandler", (Handler,), {"bundles": bundles})
     return ThreadingHTTPServer(("127.0.0.1", port), partial(handler, directory=str(APP)))
 
 
@@ -106,7 +124,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
-    server = make_server(args.port, load_bundle())
+    server = make_server(args.port, load_bundles())
     url = f"http://127.0.0.1:{args.port}/"
     print(f"Route interface: {url}   (stop with Ctrl+C)", flush=True)
     if not args.no_browser:

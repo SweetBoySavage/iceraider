@@ -29,7 +29,9 @@ First building blocks for trajectory:
 
 - Branch `ship-route-interface`. One command: `python scripts/run_app.py` (needs numpy + pyproj only; map is in `app/data/`).
 - Map: 9 NISAR scenes of 27 - 31 Oct stitched (`scripts/build_mosaic.py`), 400 m cells, newest scene wins.
-- Default route (`config/route.json`): 1,250 km along the ice edge, chosen by the user. Verdict now: NOT SAFE, ice at km 306.
+- Two scenarios with a switch in the app (`config/scenarios.json`): 27 - 31 Oct (1,250 km along the ice edge, chosen by
+  the user; verdict NOT SAFE, ice at km 306) and 15 - 21 Sep (1,000 km at 75 N, 96 % covered, training scenes only;
+  three images of the same ice on 15, 16, 17 Sep, useful to check a trajectory prediction).
 - Ice is static. Next: feed one ice map per time step from the trajectory prediction; make the ice margin depend on
   speed, drift and image age (agreed to wait for the prediction).
 - Tested with pytest and by running the page script in Node with a fake browser. No real browser on this machine.

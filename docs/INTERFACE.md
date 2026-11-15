@@ -9,7 +9,7 @@ pip install numpy pyproj          # already there if you installed requirements-
 python scripts/run_app.py         # opens http://127.0.0.1:8000/   (options: --port 8001, --no-browser)
 ```
 
-- Nothing else is needed. The ready-made map is in `app/data/` (in git, about 7 MB).
+- Nothing else is needed. The ready-made maps are in `app/data/` (in git, about 13 MB).
 - The page shows a loading bar and unlocks when everything is loaded.
 
 ## What you see
@@ -26,6 +26,7 @@ python scripts/run_app.py         # opens http://127.0.0.1:8000/   (options: --p
 
 ## Controls
 
+- **Scenario:** switch between the two periods. Each has its own map and route. Both are loaded at the start.
 - **Ship length** (m) and **speed** (knots).
 - **Margin around ice** and **around coast** (default 1,000 m each).
 - **Time:** slider, Play, or the arrow keys (left / right = one step back / forward; step is 1, 3, 6 or 12 h). Space = play.
@@ -46,17 +47,26 @@ Rules (all in `scripts/route_safety.py`):
 - Coast conflict: land closer than half the ship + the coast margin.
 - No radar image = not verified, never "safe".
 
-## Data
+## Data: two scenarios (`config/scenarios.json`)
 
-- 9 NISAR scenes, 27 - 31 Oct 2026 (training, test and one coastal scene). 6 more scenes are skipped: one channel is dead.
-- About 400,000 km2 observed. Where two scenes overlap, the newest is shown.
+| | 27 - 31 Oct 2026 | 15 - 21 Sep 2026 |
+|---|---|---|
+| NISAR scenes used | 9 (6 more skipped: dead channel) | 8 |
+| Scene kind | training, test, one coastal scene | **training only** |
+| Route | 1,250 km along the ice edge | 1,000 km offshore at 75 N |
+| Route with a radar image | about 70 % | about 96 % |
+| Same ice seen more than once | two pairs, 18 - 23 h apart | three images in two days (15, 16, 17 Sep) |
+
+- Where two scenes overlap, the newest is shown.
 - Cells of 400 m. A cell is ice when at least 25 % of it is ice.
-- Default route: `config/route.json`, 1,250 km, about 2.8 days at 10 knots. 39 % open water, 31 % ice margin, 30 % no image.
+- September: the model was trained on these images, so its ice map looks better there than on new images.
+- The time bar shows how old the radar image under the ship is.
 
 ## Limits (say these in the presentation)
 
 - **The ice does not move yet.** Every image is shown as it was taken; images are up to 4 days apart.
   The trajectory prediction will later give one ice map per time step.
+- To add a scenario: add it to `config/scenarios.json`, then rebuild the map (below).
 - The margin is fixed. Later it can grow with ship speed, ice drift and the age of the image.
 - Distances are measured on the map: up to about 1 % off at 74 N.
 - Ice / water close to the coast is not validated. The strip next to the coast counts as "not verified".
@@ -64,8 +74,9 @@ Rules (all in `scripts/route_safety.py`):
 ## Rebuild the map (only when the data or model changes)
 
 ```bash
-python scripts/build_mosaic.py        # about 5 min, needs the NISAR files in data/
-python scripts/build_app_data.py      # writes app/data/
+python scripts/build_mosaic.py 20261027 20261031     # about 5 min each, needs the NISAR files in data/
+python scripts/build_mosaic.py 20260915 20260921
+python scripts/build_app_data.py                     # writes app/data/<scenario>/
 ```
 
 ## Files

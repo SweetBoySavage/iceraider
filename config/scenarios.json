@@ -1,0 +1,46 @@
+[
+  {
+    "id": "oct",
+    "label": "27–31 Oct 2026 · along the ice edge",
+    "first_day": "20261027",
+    "last_day": "20261031",
+    "note": "Training and test scenes. 9 radar images.",
+    "route": {
+      "name": "Chukchi Sea to Beaufort Sea, along the ice edge",
+      "departure_utc": "2026-10-27T08:00:00Z",
+      "points_lat_lon": [
+        [69.4, -175.6],
+        [70.8, -174.5],
+        [71.4, -173.0],
+        [72.1, -170.3],
+        [72.6, -166.9],
+        [72.8, -163.4],
+        [73.0, -160.3],
+        [73.2, -157.4],
+        [73.4, -154.4],
+        [73.5, -150.5],
+        [73.4, -146.5],
+        [73.3, -143.7]
+      ]
+    }
+  },
+  {
+    "id": "sep",
+    "label": "15–21 Sep 2026 · offshore at 75° N",
+    "first_day": "20260915",
+    "last_day": "20260921",
+    "note": "Training scenes only: the model has seen these images, so the ice map looks better than on new images.",
+    "route": {
+      "name": "Offshore route at 75° N, west to east",
+      "departure_utc": "2026-09-16T19:00:00Z",
+      "points_lat_lon": [
+        [75.3, -179.7],
+        [75.65, -172.61],
+        [75.78, -165.28],
+        [75.68, -157.93],
+        [75.34, -150.81],
+        [74.8, -144.1]
+      ]
+    }
+  }
+]

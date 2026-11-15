@@ -1,12 +1,14 @@
-"""Turn the stitched ice map into the files the route interface loads. Run once after build_mosaic.py.
+"""Turn the stitched ice maps into the files the route interface loads. Run once after build_mosaic.py.
 
     python scripts/build_app_data.py
 
-Writes into app/data/ (small, committed to git, so the app starts without the radar data):
+A scenario is a period with its own stitched map and route (config/scenarios.json). The app can switch between them.
+Writes app/data/scenarios.json and, per scenario, app/data/<id>/ (small, committed to git, so the app starts
+without the radar data):
 - bundle.npz    what the safety check reads: classes, image per cell, distance to ice and to land in metres
 - cells.png     for drawing: red = class, green = image number
 - distance.png  for drawing the margins: red = distance to ice, green = distance to land, both in steps of 100 m
-- meta.json     grid, image times, default values, the default route (config/route.json)
+- meta.json     grid, image times, default values, the route of the scenario
 """
 from __future__ import annotations
 
@@ -20,11 +22,11 @@ from scipy.ndimage import distance_transform_edt
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts import detection, route_safety                                    # noqa: E402
-from scripts.build_mosaic import FIRST_DAY, LAST_DAY, MAX_DISTANCE_M, load_mosaic   # noqa: E402
+from scripts.build_mosaic import MAX_DISTANCE_M, load_mosaic                   # noqa: E402
 from scripts.evaluate_detection import LAND                                    # noqa: E402
 from scripts.run_app import APP_DATA, ARRAYS, load_bundle                      # noqa: E402,F401
 
-ROUTE = ROOT / "config" / "route.json"
+SCENARIOS = ROOT / "config" / "scenarios.json"
 PNG_STEP_M = 100                       # distance.png counts in steps of this size, 255 = 25.5 km or more
 DEFAULTS = {"ship_m": 200.0, "speed_kn": 10.0, "ice_buffer_m": 1000.0}
 
@@ -66,33 +68,56 @@ def scene_list(bundle: dict) -> list[dict]:
     return out
 
 
-def read_route(path: Path = ROUTE) -> dict:
-    route = json.loads(Path(path).read_text())
-    route_safety.to_xy(route["points_lat_lon"])            # fails early on a broken file
-    if len(route["points_lat_lon"]) < 2:
-        raise ValueError(f"{path}: a route needs at least two points")
-    return route
+def read_scenarios(path: Path = SCENARIOS) -> list[dict]:
+    """The scenarios of config/scenarios.json. Fails early on a broken file."""
+    scenarios = json.loads(Path(path).read_text())
+    if not scenarios:
+        raise ValueError(f"{path}: no scenarios")
+    ids = [s["id"] for s in scenarios]
+    if len(set(ids)) != len(ids) or not all(i.isalnum() for i in ids):
+        raise ValueError(f"{path}: scenario ids must be unique and made of letters and digits, got {ids}")
+    for s in scenarios:
+        if len(s["route"]["points_lat_lon"]) < 2:
+            raise ValueError(f"{path}: the route of '{s['id']}' needs at least two points")
+        route_safety.to_xy(s["route"]["points_lat_lon"])
+        missing = {"label", "first_day", "last_day", "note"} - set(s) | {"name", "departure_utc"} - set(s["route"])
+        if missing:
+            raise ValueError(f"{path}: scenario '{s['id']}' misses {sorted(missing)}")
+    return scenarios
 
 
-def make_meta(bundle: dict, route: dict) -> dict:
+def make_meta(bundle: dict, scenario: dict) -> dict:
     rows, cols = bundle["classes"].shape
-    return {"epsg": bundle["epsg"], "x0": bundle["x0"], "y0": bundle["y0"], "cell_m": bundle["cell_m"], "nx": cols, "ny": rows,
+    return {"id": scenario["id"], "label": scenario["label"], "note": scenario["note"],
+            "epsg": bundle["epsg"], "x0": bundle["x0"], "y0": bundle["y0"], "cell_m": bundle["cell_m"], "nx": cols, "ny": rows,
             "png_step_m": PNG_STEP_M, "scenes": scene_list(bundle),
             "skipped": [{"name": n, "time_utc": f"{detection.scene_time(n):%Y-%m-%dT%H:%M:%SZ}"} for n in bundle["skipped"]],
             "defaults": DEFAULTS | {"coast_margin_m": bundle["margin_m"]},
-            "limits": {k: list(v) for k, v in route_safety.LIMITS.items()}, "route": route}
+            "limits": {k: list(v) for k, v in route_safety.LIMITS.items()}, "route": scenario["route"]}
 
 
-def write(bundle: dict, route: dict, out_dir: Path = APP_DATA) -> None:
+def write(bundle: dict, scenario: dict, app_data: Path = APP_DATA) -> Path:
+    """Write the files of one scenario into app_data/<id>/. Returns that folder."""
     from PIL import Image
+    out_dir = Path(app_data) / scenario["id"]
     out_dir.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(out_dir / "bundle.npz", **bundle)
     for name, picture in zip(("cells.png", "distance.png"), display_images(bundle)):
         Image.fromarray(picture, "RGB").save(out_dir / name, optimize=True)
-    (out_dir / "meta.json").write_text(json.dumps(make_meta(bundle, route), indent=1))
+    (out_dir / "meta.json").write_text(json.dumps(make_meta(bundle, scenario), indent=1, ensure_ascii=False))
+    return out_dir
+
+
+def write_index(scenarios: list[dict], app_data: Path = APP_DATA) -> None:
+    """The list the app and the server start from: the first scenario is the one shown first."""
+    index = [{"id": s["id"], "label": s["label"]} for s in scenarios]
+    (Path(app_data) / "scenarios.json").write_text(json.dumps(index, indent=1, ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    write(make_bundle(load_mosaic(FIRST_DAY, LAST_DAY)), read_route())
-    for f in sorted(APP_DATA.iterdir()):
+    scenarios = read_scenarios()
+    for scenario in scenarios:
+        write(make_bundle(load_mosaic(scenario["first_day"], scenario["last_day"])), scenario)
+    write_index(scenarios)
+    for f in sorted(p for p in APP_DATA.rglob("*") if p.is_file()):
         print(f"{f.stat().st_size / 1e6:6.2f} MB  {f.relative_to(ROOT)}")

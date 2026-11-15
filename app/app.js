@@ -10,7 +10,7 @@ const PARAMS = ["ship_m", "speed_kn", "ice_buffer_m", "coast_margin_m"];
 const KNOT_KMH = 1.852;
 const PLAY_HOURS_PER_SECOND = 6;
 
-const state = { meta: null, cls: null, iceSteps: null, landSteps: null, base: null, overlay: null, params: {}, route: [], result: null,
+const state = { scenarios: {}, scenarioId: null, meta: null, cls: null, iceSteps: null, landSteps: null, base: null, overlay: null, params: {}, route: [], result: null,
                 hours: 0, playing: false, view: { scale: 1, ox: 0, oy: 0 }, drag: null, dirty: true, checkId: 0 };
 
 // ---------- map projection (EPSG:3413, polar stereographic, true at 70 N, 45 W down) ----------
@@ -69,40 +69,52 @@ async function loadPixels(url, width, height) {
   return ctx.getImageData(0, 0, width, height).data;
 }
 
-async function load() {
-  progress(0.05, "Reading the map description…");
-  const meta = state.meta = await getJson("data/meta.json");
-  const n = meta.nx * meta.ny;
-  progress(0.2, "Loading the ice map…");
-  const cells = await loadPixels("data/cells.png", meta.nx, meta.ny);
-  progress(0.45, "Loading distances to ice and coast…");
-  const dist = await loadPixels("data/distance.png", meta.nx, meta.ny);
-  state.cls = new Uint8Array(n); state.iceSteps = new Uint8Array(n); state.landSteps = new Uint8Array(n);
-  for (let i = 0; i < n; i++) { state.cls[i] = cells[4 * i]; state.iceSteps[i] = dist[4 * i]; state.landSteps[i] = dist[4 * i + 1]; }
-  progress(0.65, "Drawing the map…");
-  await new Promise(requestAnimationFrame);
-  paintBase();
-  state.overlay = new OffscreenCanvas(meta.nx, meta.ny);
-  resetValues();
-  paintOverlay();
-  progress(0.85, "Checking the route…");
-  await check();
-  $("route-name").textContent = meta.route.name;
-  resize(); fitRoute();
+async function load() {                         // every scenario is loaded before the page unlocks: switching is instant
+  progress(0.03, "Reading the list of scenarios…");
+  const list = await getJson("data/scenarios.json");
+  for (const [k, item] of list.entries()) {
+    const share = (step) => (k + step) / list.length * 0.85 + 0.05, dir = `data/${item.id}/`;
+    progress(share(0), `${item.label}: reading the map description…`);
+    const meta = await getJson(dir + "meta.json"), n = meta.nx * meta.ny;
+    progress(share(0.15), `${item.label}: loading the ice map…`);
+    const cells = await loadPixels(dir + "cells.png", meta.nx, meta.ny);
+    progress(share(0.45), `${item.label}: loading distances to ice and coast…`);
+    const dist = await loadPixels(dir + "distance.png", meta.nx, meta.ny);
+    const cls = new Uint8Array(n), iceSteps = new Uint8Array(n), landSteps = new Uint8Array(n);
+    for (let i = 0; i < n; i++) { cls[i] = cells[4 * i]; iceSteps[i] = dist[4 * i]; landSteps[i] = dist[4 * i + 1]; }
+    progress(share(0.75), `${item.label}: drawing the map…`);
+    await new Promise(requestAnimationFrame);
+    state.scenarios[item.id] = { meta, cls, iceSteps, landSteps, base: paintBase(meta, cls) };
+  }
+  $("scenario").innerHTML = list.map((item) => `<option value="${item.id}">${item.label}</option>`).join("");
+  progress(0.92, "Checking the route…");
+  await useScenario(list[0].id);
   progress(1, "Ready");
   $("loading").classList.add("done");
 }
 
+async function useScenario(id) {
+  Object.assign(state, state.scenarios[id], { scenarioId: id, result: null, hours: 0 });
+  state.overlay = new OffscreenCanvas(state.meta.nx, state.meta.ny);
+  setPlaying(false);
+  $("scenario").value = id;
+  $("route-name").textContent = state.meta.route.name;
+  $("scenario-note").textContent = state.meta.note;
+  resetValues(); paintOverlay();
+  await check();
+  resize(); fitRoute();
+}
+
 // ---------- map layers ----------
-function paintBase() {
-  const { nx, ny } = state.meta, canvas = new OffscreenCanvas(nx, ny), ctx = canvas.getContext("2d");
+function paintBase({ nx, ny }, cls) {
+  const canvas = new OffscreenCanvas(nx, ny), ctx = canvas.getContext("2d");
   const image = ctx.createImageData(nx, ny), px = image.data;
   for (let i = 0; i < nx * ny; i++) {
-    const c = BASE_COLOR[state.cls[i]] || BASE_COLOR[CLASS.NO_DATA];
+    const c = BASE_COLOR[cls[i]] || BASE_COLOR[CLASS.NO_DATA];
     px[4 * i] = c[0]; px[4 * i + 1] = c[1]; px[4 * i + 2] = c[2]; px[4 * i + 3] = 255;
   }
   ctx.putImageData(image, 0, 0);
-  state.base = canvas;
+  return canvas;
 }
 
 function paintOverlay() {                      // the safety margins around ice and coast, for the current values
@@ -121,7 +133,7 @@ function paintOverlay() {                      // the safety margins around ice 
 // ---------- route check (server) ----------
 async function check() {
   const id = ++state.checkId, p = state.params;
-  const query = PARAMS.map((k) => `${k}=${p[k]}`).join("&") + "&route=" + state.route.map(([lat, lon]) => `${lat.toFixed(5)},${lon.toFixed(5)}`).join(";");
+  const query = `scenario=${state.scenarioId}&` + PARAMS.map((k) => `${k}=${p[k]}`).join("&") + "&route=" + state.route.map(([lat, lon]) => `${lat.toFixed(5)},${lon.toFixed(5)}`).join(";");
   const result = await getJson(`api/check?${query}`);
   if (id !== state.checkId) return;            // a newer question is already on its way
   state.result = result;
@@ -177,6 +189,7 @@ function shipAt(hours) {                        // position, heading and status 
 }
 
 function setHours(hours) {
+  if (!state.result) return;
   state.hours = Math.max(0, Math.min(hours, state.result.verdict.hours));
   showTime(); state.dirty = true;
 }
@@ -188,7 +201,12 @@ function showTime() {
   $("clock").textContent = `T + ${state.hours.toFixed(1)} h  ·  ${fmtTime(timeAt(state.hours))}`;
   const where = ["open water, observed", "no radar image here", "inside the ice margin", "inside the coast margin"][ship.status];
   $("shipinfo").innerHTML = `km ${Math.round(ship.km)} of ${Math.round(r.verdict.total_km)} · <b style="color:${STATUS_COLOR[ship.status]}">${where}</b>`
-    + (scene ? ` · radar image of ${fmtTime(new Date(scene.time_utc))}` : "");
+    + (scene ? ` · radar image of ${fmtTime(new Date(scene.time_utc))} (${imageAge(scene)})` : "");
+}
+
+function imageAge(scene) {                      // how old the radar image is when the ship is there
+  const hours = (timeAt(state.hours) - Date.parse(scene.time_utc)) / 3600e3;
+  return hours >= 0 ? `${fmtHours(hours)} old` : `taken ${fmtHours(-hours)} later`;
 }
 
 function setPlaying(on) { state.playing = on; state.lastFrame = null; $("play").textContent = on ? "❚❚ Pause" : "▶ Play"; state.dirty = true; }
@@ -219,11 +237,11 @@ function drawGraticule() {
   const line = (points) => { ctx.beginPath(); points.forEach(([lat, lon], i) => { const [x, y] = toScreen(...cellOf(lat, lon)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); };
   for (let lat = 64; lat <= 80; lat += 2) {
     line(Array.from({ length: 61 }, (_, i) => [lat, -205 + i]));
-    const [x, y] = toScreen(...cellOf(lat, -140.5)); ctx.fillText(`${lat}° N`, x + 4, y - 3);
+    for (const lon of [-140.5, -170.5]) { const [x, y] = toScreen(...cellOf(lat, lon)); ctx.fillText(`${lat}° N`, x + 4, y - 3); }
   }
   for (let lon = -200; lon <= -140; lon += 10) {
     line([[62, lon], [82, lon]]);
-    const [x, y] = toScreen(...cellOf(68.1, lon)); ctx.fillText(lon < -180 ? `${360 + lon}° E` : `${-lon}° W`, x + 4, y - 3);
+    for (const lat of [68.1, 74.1]) { const [x, y] = toScreen(...cellOf(lat, lon)); ctx.fillText(lon < -180 ? `${360 + lon}° E` : `${-lon}° W`, x + 4, y - 3); }
   }
 }
 
@@ -332,6 +350,7 @@ function wire() {
     if (key !== "speed_kn") paintOverlay();
     checkSoon();
   });
+  $("scenario").addEventListener("change", () => useScenario($("scenario").value).catch(showError));
   $("reset").onclick = () => { resetValues(); paintOverlay(); setHours(0); fitRoute(); checkSoon(); };
   $("jump").onclick = () => { setPlaying(false); setHours(state.result.verdict.first_conflict.hours); };
   $("time").addEventListener("input", () => { setPlaying(false); setHours(Number($("time").value)); });

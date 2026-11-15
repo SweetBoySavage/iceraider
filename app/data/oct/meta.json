@@ -1,4 +1,7 @@
 {
+ "id": "oct",
+ "label": "27–31 Oct 2026 · along the ice edge",
+ "note": "Training and test scenes. 9 radar images.",
  "epsg": 3413,
  "x0": -2094400.0,
  "y0": 1764800.0,

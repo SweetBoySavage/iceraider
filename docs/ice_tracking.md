@@ -94,9 +94,12 @@ northwards on the map, so the row direction is flipped. Speed is reported in km/
 
 ## Output
 
-`figures/chukchi_ice_motion.png`: the arrows on the 27 Oct HH image, coloured by speed (km/day).
-Arrows start at the patch centre and point in the direction of motion; their drawn length is set by
-the speed (`scale=0.02` in `quiver`), so they are about 60 % of the real 23.3 h displacement.
+`figures/chukchi_ice_motion.png`: before and after, side by side at the same zoom. Left: the 27 Oct HH
+image; right: the 28 Oct HH image. The same displacement arrows are drawn on both, at map scale: each
+arrow starts at a patch centre in image 1 and ends at the centre of the matched patch in image 2, so its
+length is the real distance the ice moved in 23.3 h. Compare the ice under an arrow's start on the left
+with the ice under its tip on the right. Colour = displacement in km; the title also gives the median
+speed in km/day.
 
 `figures/chukchi_classes.png`: k-means classes (HH + VV) on the same window in both scenes, with the
 28 Oct scene moved back by the median drift so the same ice is compared.

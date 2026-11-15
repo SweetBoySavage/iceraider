@@ -106,18 +106,32 @@ def save_figures(power, x, y, tracks, classes):
 
     FIGS.mkdir(exist_ok=True)
     extent = [x[0] / 1e3, x[-1] / 1e3, y[-1] / 1e3, y[0] / 1e3]
-    fig, axes = plt.subplots(1, len(tracks), figsize=(8 * len(tracks), 8), squeeze=False)
-    for ax, ((a, b), t) in zip(axes[0], tracks.items()):
-        ax.imshow(to_db(power[a]["hh"][::4, ::4]), cmap="gray", extent=extent,
-                  vmin=np.nanpercentile(to_db(power[a]["hh"][::16, ::16]), 2), vmax=np.nanpercentile(to_db(power[a]["hh"][::16, ::16]), 98))
-        vx, vy, speed = to_velocity(t["d_row"], t["d_col"], SPACING, hours_between(a, b))
-        q = ax.quiver(x[t["col"].astype(int)] / 1e3, y[t["row"].astype(int)] / 1e3, vx, vy, speed, cmap="plasma",
-                      angles="xy", scale_units="xy", scale=0.02, width=0.003)
-        plt.colorbar(q, ax=ax, label="km/day", shrink=0.6)
-        med = f", median {np.median(speed):.1f} km/day" if len(speed) else ""
-        ax.set_title(f"{t['source']}\n{start_time(a):%d %b %H:%M} -> {start_time(b):%d %b %H:%M} UTC, {len(speed)} vectors{med}")
-        ax.set_xlabel("x (km, EPSG:3413)"); ax.set_ylabel("y (km)")
-    plt.tight_layout(); plt.savefig(FIGS / "chukchi_ice_motion.png", dpi=70); plt.close()
+    # one row per pair: before (image 1) and after (image 2), same zoom, same displacement arrows on both
+    fig, axes = plt.subplots(len(tracks), 2, figsize=(16, 7.5 * len(tracks)), squeeze=False, layout="constrained")
+    summaries = []
+    for row, ((a, b), t) in zip(axes, tracks.items()):
+        # displacement arrows at map scale: from the patch centre in image 1 to the matched centre in image 2
+        x0, y0 = x[t["col"].astype(int)] / 1e3, y[t["row"].astype(int)] / 1e3
+        dx_km, dy_km = t["d_col"] * SPACING / 1e3, -t["d_row"] * SPACING / 1e3    # rows grow southwards
+        dist_km = np.hypot(dx_km, dy_km)
+        _, _, speed = to_velocity(t["d_row"], t["d_col"], SPACING, hours_between(a, b))
+        for ax, name, when in ((row[0], a, "Before"), (row[1], b, "After")):
+            hh = to_db(power[name]["hh"])
+            ax.imshow(hh[::2, ::2], cmap="gray", extent=extent,
+                      vmin=np.nanpercentile(hh[::16, ::16], 2), vmax=np.nanpercentile(hh[::16, ::16], 98))
+            q = ax.quiver(x0, y0, dx_km, dy_km, dist_km, cmap="plasma", angles="xy", scale_units="xy", scale=1,
+                          width=0.0025)
+            ax.set_title(f"{when}: NISAR HH, {start_time(name):%d %b %Y %H:%M} UTC")
+            if len(speed):                          # zoom to the arrows (start and end) with a 20 km margin
+                ax.set_xlim(min(x0.min(), (x0 + dx_km).min()) - 20, max(x0.max(), (x0 + dx_km).max()) + 20)
+                ax.set_ylim(min(y0.min(), (y0 + dy_km).min()) - 20, max(y0.max(), (y0 + dy_km).max()) + 20)
+            ax.set_xlabel("x (km, EPSG:3413)"); ax.set_ylabel("y (km)")
+        fig.colorbar(q, ax=row, label="displacement (km)", shrink=0.8)
+        med = f", median {np.median(dist_km):.1f} km ({np.median(speed):.1f} km/day)" if len(speed) else ""
+        summaries.append(f"{t['source']}, {hours_between(a, b):.1f} h: {len(speed)} arrows{med}")
+    fig.suptitle("\n".join(summaries) + "\nArrows start at a patch centre on the 'before' image and end where that "
+                 "patch is found on the 'after' image (map scale).", fontsize=12)
+    plt.savefig(FIGS / "chukchi_ice_motion.png", dpi=100); plt.close()
 
     fig, axes = plt.subplots(2, 2, figsize=(13, 12))
     for col, (name, c) in enumerate(classes.items()):

@@ -27,3 +27,7 @@ data/
 
 # --- Secrets: NEVER commit ---
 .env
+
+# --- Route interface: its small, ready-made map IS committed, so the app starts without the radar data ---
+!app/data/
+!app/data/**

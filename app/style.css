@@ -1,0 +1,82 @@
+/* AI-generated: the code of this interface was written with Claude (Anthropic), an AI assistant, directed and checked by the team. */
+:root {
+  --bg: #0a1018; --panel: #101926; --card: #162233; --line: #24344a; --text: #e6eef7; --dim: #9db0c6;
+  --clear: #2ee6a6; --unverified: #9aa7b8; --ice: #ff4d4d; --land: #ffb300; --accent: #4cc2ff;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+p { margin: 0; }
+
+/* ---- left panel: everything on one screen, no scrolling. app.js shrinks the font until it fits. All sizes are in em. ---- */
+#panel { width: clamp(400px, 38vw, 700px); flex: none; height: 100vh; overflow: hidden; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 1.1em 1.2em; font-size: clamp(11px, 1.85vh, 20px); display: flex; flex-direction: column; gap: .75em; }
+.brand { font-weight: 800; letter-spacing: .26em; color: var(--accent); margin: 0; }
+h1.brand { font-size: 2.1em; line-height: 1.1; }
+.tagline { font-size: 1.3em; font-weight: 700; margin-top: .15em; }
+.about { color: var(--dim); margin-top: .35em; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: .7em; padding: .8em .95em; }
+h2 { font-size: .78em; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 .55em; font-weight: 700; }
+.sub-head { margin-top: 1em; padding-top: .8em; border-top: 1px solid var(--line); }
+.note { color: var(--dim); font-size: .88em; }
+
+#scenario { width: 100%; font-size: 1em; margin-bottom: .4em; }
+#verdict-state { font-size: 1.75em; font-weight: 800; letter-spacing: .02em; line-height: 1.15; }
+#verdict.blocked { border-color: var(--ice); } #verdict.blocked #verdict-state { color: var(--ice); }
+#verdict.clear { border-color: var(--clear); } #verdict.clear #verdict-state { color: var(--clear); }
+#verdict.clear_where_observed { border-color: var(--land); } #verdict.clear_where_observed #verdict-state { color: var(--land); }
+#verdict.no_data #verdict-state { color: var(--unverified); }
+.share { display: flex; height: .6em; border-radius: .3em; overflow: hidden; background: var(--line); margin: .5em 0 .45em; }
+.share i { display: block; height: 100%; }
+.rows div { display: flex; align-items: center; padding: .08em 0; }
+.dot { display: inline-block; width: .7em; height: .7em; border-radius: 50%; margin-right: .55em; flex: none; }
+.clear { background: var(--clear); } .unverified { background: var(--unverified); } .ice { background: var(--ice); } .land { background: var(--land); }
+#jump { width: 100%; margin-top: .6em; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .45em 1.2em; }
+.grid2 label { display: block; }
+output { float: right; color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--accent); margin: .2em 0 0; }
+.toggles label { display: flex; align-items: center; gap: .5em; cursor: pointer; user-select: none; }
+.toggles input { width: 1.1em; height: 1.1em; accent-color: var(--accent); margin: 0; flex: none; }
+.sw { display: inline-block; width: 1em; height: 1em; border-radius: .2em; border: 1px solid #ffffff33; flex: none; }
+.ice-c { background: #e8f3fa; } .water-c { background: #0f4c75; } .nodata-c { background: #161d29; } .land-c { background: #3a3e46; }
+.icezone-c { background: #ff5a3c; } .coastzone-c { background: #ffb300; }
+.route-c { background: linear-gradient(90deg, var(--clear) 34%, var(--unverified) 34% 66%, var(--ice) 66%); }
+.label-c { background: #0a1018; border-color: #cfe3f5; } .grid-c { background: repeating-linear-gradient(90deg, #ffffff55 0 1px, transparent 1px .34em); }
+.name-c { background: #3a3e46; border-color: #c9d1dc; }
+.key { display: flex; gap: 1.3em; margin-top: .55em; color: var(--dim); font-size: .92em; }
+.key span { display: flex; align-items: center; gap: .45em; }
+.foot { display: flex; gap: 1em; align-items: center; margin-top: .6em; }
+.foot .note { flex: 1; }
+
+button, select { background: #1d2c41; color: var(--text); border: 1px solid var(--line); border-radius: .5em; padding: .4em .9em; font: inherit; cursor: pointer; }
+button:hover, select:hover { border-color: var(--accent); }
+
+/* ---- map side ---- */
+main { position: relative; flex: 1; min-width: 0; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+#map.dragging { cursor: grabbing; }
+#cursor { position: absolute; top: 14px; left: 14px; background: #0a1018dd; border: 1px solid var(--line); border-radius: 9px; padding: 8px 16px;
+  font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; pointer-events: none; }
+#ai-mark { position: absolute; top: 14px; right: 14px; background: #0a1018dd; border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px;
+  font-size: 15px; color: var(--text); pointer-events: none; }
+#ai-mark b { color: var(--land); letter-spacing: .04em; }
+#timeline { position: absolute; left: 14px; right: 14px; bottom: 14px; background: #101926f2; border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px 12px; }
+#timeline .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+#timeline button { font-size: 22px; font-weight: 700; padding: 10px 22px; min-width: 64px; border-radius: 10px; }
+#timeline #play { min-width: 150px; background: var(--accent); color: #06121c; border-color: var(--accent); }
+#timeline .step { color: var(--dim); font-size: 17px; margin-left: 6px; white-space: nowrap; }
+#timeline select { font-size: 17px; padding: 9px 10px; }
+.when { margin-left: auto; text-align: right; min-width: 0; }
+#clock { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#shipinfo { color: var(--dim); font-size: 16px; }
+#time { height: 22px; }
+
+#loading { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+#loading.done { display: none; }
+.loading-box { width: 380px; text-align: center; }
+.loading-box .brand { font-size: 30px; }
+#loading-text { color: var(--dim); margin: 16px 0 12px; }
+.bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+#loading-bar { height: 100%; width: 0; background: var(--accent); transition: width .2s; }

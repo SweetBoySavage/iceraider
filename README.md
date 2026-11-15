@@ -237,6 +237,9 @@ including new ice) would be the natural way to test explanation 1.
 
 ## 9. Run it yourself
 
+> **Ship route app (NISAR, Chukchi Sea):** install and usage are in [docs/INTERFACE.md](docs/INTERFACE.md).
+> Short version: `pip install numpy pyproj`, then `python scripts/run_app.py`.
+
 Requires [uv](https://docs.astral.sh/uv/) (or Python ≥ 3.12 with `pip install -r requirements.txt`).
 
 ```bash

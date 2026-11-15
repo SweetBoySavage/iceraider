@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- AI-generated: the code of this interface was written with Claude (Anthropic), an AI assistant, directed and checked by the team. -->
+<meta name="generator" content="Claude (Anthropic), AI assistant">
+<meta name="ai-generated" content="AI-generated: the code of this interface was written with Claude (Anthropic), an AI assistant, directed and checked by the team.">
+<title>Ice Raider: can the ship pass?</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="loading">
+  <div class="loading-box">
+    <div class="brand">ICE RAIDER</div>
+    <div id="loading-text">Loading…</div>
+    <div class="bar"><div id="loading-bar"></div></div>
+  </div>
+</div>
+
+<aside id="panel">
+  <header>
+    <h1 class="brand">ICE RAIDER</h1>
+    <p class="tagline">Can a ship cross the Arctic sea ice safely?</p>
+    <p class="about">Sea ice detection model based on NASA NISAR satellite radar data. Shows whether a ship can
+      traverse its route safely or will encounter ice.</p>
+  </header>
+
+  <section class="card">
+    <h2>1 · Choose a period and route</h2>
+    <select id="scenario"></select>
+    <p class="note" id="scenario-note"></p>
+  </section>
+
+  <section id="verdict" class="card">
+    <h2>2 · Verdict for this route</h2>
+    <div id="verdict-state">…</div>
+    <div id="share" class="share"></div>
+    <div class="rows">
+      <div><i class="dot clear"></i>Open water, seen by radar</div>
+      <div><i class="dot unverified"></i>No radar image: unknown</div>
+      <div><i class="dot ice"></i>Too close to sea ice</div>
+      <div><i class="dot land"></i>Too close to the coast</div>
+    </div>
+    <button id="jump" hidden>Show the first conflict on the map</button>
+
+    <h2 class="sub-head">Show on the map</h2>
+    <div class="grid2 toggles">
+      <label><input type="checkbox" id="show-ice" checked><i class="sw ice-c"></i>Sea ice</label>
+      <label><input type="checkbox" id="show-route" checked><i class="sw route-c"></i>Route</label>
+      <label><input type="checkbox" id="show-iceMargin" checked><i class="sw icezone-c"></i>Ice safety margin</label>
+      <label><input type="checkbox" id="show-coastMargin" checked><i class="sw coastzone-c"></i>Coast safety margin</label>
+      <label><input type="checkbox" id="show-images" checked><i class="sw label-c"></i>NISAR image dates</label>
+      <label><input type="checkbox" id="show-grid" checked><i class="sw grid-c"></i>Latitude / longitude</label>
+      <label><input type="checkbox" id="show-names" checked><i class="sw name-c"></i>Place names</label>
+    </div>
+    <div class="key"><span><i class="sw water-c"></i>Open water</span><span><i class="sw land-c"></i>Land</span><span><i class="sw nodata-c"></i>No radar image</span></div>
+  </section>
+
+  <section class="card">
+    <h2>3 · Change the ship and the safety margins</h2>
+    <div class="grid2">
+      <label>Ship length <output id="o-ship_m"></output>
+        <input type="range" id="ship_m" min="10" max="500" step="10"></label>
+      <label>Ship speed <output id="o-speed_kn"></output>
+        <input type="range" id="speed_kn" min="1" max="30" step="0.5"></label>
+      <label>Margin around ice <output id="o-ice_buffer_m"></output>
+        <input type="range" id="ice_buffer_m" min="0" max="10000" step="100"></label>
+      <label>Margin around coast <output id="o-coast_margin_m"></output>
+        <input type="range" id="coast_margin_m" min="0" max="10000" step="100"></label>
+    </div>
+    <div class="foot">
+      <p class="note">Drag a route point to steer. Scroll to zoom.</p>
+      <button id="reset">Reset</button>
+    </div>
+  </section>
+</aside>
+
+<main>
+  <canvas id="map"></canvas>
+  <div id="cursor">Move the mouse over the map</div>
+  <div id="ai-mark" title="AI-generated: the code of this interface was written with Claude (Anthropic), an AI assistant, directed and checked by the team."><b>AI-generated</b> · interface code written with Claude (Anthropic)</div>
+  <div id="timeline">
+    <div class="row">
+      <button id="back" title="Left arrow key">◀</button>
+      <button id="play" title="Space bar">▶ Play</button>
+      <button id="fwd" title="Right arrow key">▶</button>
+      <label class="step">Step
+        <select id="step"><option value="1">1 h</option><option value="3" selected>3 h</option><option value="6">6 h</option><option value="12">12 h</option></select>
+      </label>
+      <div class="when">
+        <div id="clock"></div>
+        <div id="shipinfo"></div>
+      </div>
+    </div>
+    <input type="range" id="time" min="0" max="1" step="0.01" value="0">
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

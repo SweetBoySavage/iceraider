@@ -10,7 +10,7 @@ Goal: (1) detect sea ice in radar images, (2) track and predict where it moves.
 | Ice / open-water detection | **Done and frozen. Do not retune.** |
 | Ice tracking between two images | Works (NISAR pair, cross-sensor with Sentinel-1) |
 | Trajectory *prediction* | **Not started** |
-| App / interface | **Not started** |
+| App / interface | First version works (static ice). Start: `python scripts/run_app.py`. See `docs/INTERFACE.md`. The user checked the first version; the clean-up after that (one-screen panel, toggles, richer verdict) still needs a look in a browser |
 | Presentation | **Not started** |
 | Step-by-step notebook for NISAR | Not built (original notebook untouched) |
 | Branch `nisar-loader` -> `main` | Merged on 14 Nov (pull request #1). The land mask followed in a second pull request |
@@ -24,6 +24,19 @@ Goal: (1) detect sea ice in radar images, (2) track and predict where it moves.
 First building blocks for trajectory:
 - A buoy loader (IABP). Buoys are the only reference with real motion. Best spot: 73-75 N, 155-162 W, 27-28 Oct.
 - Decide on a driver for prediction (wind?). Not looked at yet. Without it, only "continue the last drift" is possible.
+
+## Route interface (added 15 Nov)
+
+- Branch `ship-route-interface`. One command: `python scripts/run_app.py` (needs numpy + pyproj only; map is in `app/data/`).
+- Map: 9 NISAR scenes of 27 - 31 Oct stitched (`scripts/build_mosaic.py`), 400 m cells, newest scene wins.
+- Two scenarios with a switch in the app (`config/scenarios.json`): 27 - 31 Oct (1,250 km along the ice edge, chosen by
+  the user; verdict NOT SAFE, ice at km 306) and 15 - 21 Sep (1,000 km at 75 N, 96 % covered, training scenes only;
+  three images of the same ice on 15, 16, 17 Sep, useful to check a trajectory prediction).
+- Ice is static. Next: feed one ice map per time step from the trajectory prediction; make the ice margin depend on
+  speed, drift and image age (agreed to wait for the prediction).
+- Tested with pytest and by running the page script in Node with a fake browser. No real browser on this machine.
+- Open: look at the clean-up in a browser; September route starts inside the ice; no pull request yet;
+  `--host 0.0.0.0` option was added on my own initiative (remove it if not wanted).
 
 ## Land mask (added 14 Nov, late)
 
@@ -77,4 +90,7 @@ First building blocks for trajectory:
   `scenes` (5), `results` (per-scene scores + test result), `ice_motion` (1,243 points). Never print the string.
 - Commits use the GitHub no-reply address (the repo is public). Work on a branch, never push to `main`.
 - Discord project channel: images were posted there on 14 Nov.
+- AI rule (Space Apps submission guide): AI tools are allowed; AI use must be declared in the submission; AI-generated
+  images and videos need a visible watermark; audio needs it in text and metadata; no NASA logos in generated content.
+  The interface carries a visible "AI-generated" mark. Any other AI-made image or video must get one too.
 - Before submitting: check citation wording for Uni Bremen, IABP, Copernicus, NASA DAACs, and the rule on declaring AI use.

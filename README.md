@@ -7,6 +7,12 @@ whether a ship's route stays clear of the ice **at the moment the ship passes**.
 
 **Demo video:**
 
+[![The route app: NISAR ice map of 27-31 Oct 2026 drifting with the forecast, a ship route checked against it](https://img.youtube.com/vi/VMjl6FpxkU4/hqdefault.jpg)](https://www.youtube.com/embed/VMjl6FpxkU4)
+
+[<img src="https://img.youtube.com/vi/VMjl6FpxkU4/hqdefault.jpg" width="600" height="300"
+/>](https://www.youtube.com/embed/VMjl6FpxkU4)
+
+
 
 ![The route app: NISAR ice map of 27-31 Oct 2026 drifting with the forecast, a ship route checked against it](https://github.com/SweetBoySavage/iceraider/blob/main/IceRaiders_SpaceApps_final.mp4)
 

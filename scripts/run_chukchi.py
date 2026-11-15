@@ -1,4 +1,4 @@
-"""End-to-end run for the Chukchi Sea test area: load -> common grid -> ice detection -> track -> classify -> MongoDB.
+"""End-to-end run for the Chukchi Sea test area, NISAR only: load -> common grid -> ice detection -> track -> classify -> MongoDB.
 
 Run after scripts/download_scenes.py:   python scripts/run_chukchi.py
 Add --no-db to skip MongoDB. Writes figures to figures/chukchi_*.png. Tracking is described in docs/ice_tracking.md.
@@ -15,25 +15,20 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts import mongo_store                                               # noqa: E402
-from scripts.asf_loader import ENL_EW_GRDM, load_asf_item                     # noqa: E402
 from scripts.classify import (dark_threshold, kmeans_classes, largest_clean_square, lee_filter, to_db,  # noqa: E402
                               water_from_copol_ratio)
 from scripts.download_scenes import SCENES, find                              # noqa: E402
 from scripts.ice_tracking import highpass, keep_on_ice, to_velocity, track                 # noqa: E402
 from scripts.nisar_loader import load_gcov                                    # noqa: E402
-from scripts.s1_geocode import sigma0_radar_geometry, warp_to_grid            # noqa: E402
 
 DATA, FIGS = ROOT / "data", ROOT / "figures"
 EPSG, SPACING = 3413, 80.0
 NISAR = [s for s in SCENES if s.startswith("NISAR")]
-S1 = [s for s in SCENES if s.startswith("S1")]
-# (from, to, source label). Sentinel-1 27 -> 29 Oct is left out: 48 h is too long, the ice pattern changes.
-PAIRS = [(NISAR[0], NISAR[1], "NISAR tracking"),
-         (S1[0], S1[1], "Sentinel-1 tracking"),
-         (NISAR[0], S1[1], "NISAR to Sentinel-1 tracking"),
-         (S1[1], NISAR[1], "Sentinel-1 to NISAR tracking")]
-TRACK = dict(patch=128, step=64, coarse=4, min_similarity=0.3)
-CLASSIFY = (NISAR[0], S1[1])       # same day (27 Oct), 7.4 h apart
+# (from, to, source label). Sentinel-1 scenes in SCENES are not used.
+PAIRS = [(NISAR[0], NISAR[1], "NISAR tracking")]
+TRACK = dict(patch=128, step=64, coarse=4, min_similarity=0.5)
+CLASSIFY = (NISAR[0], NISAR[1])    # the tracking pair, 23.3 h apart
+NISAR_ENL = 39.0
 
 
 def start_time(name: str) -> datetime:
@@ -77,50 +72,38 @@ def load_everything():
     nisar = {n: load_gcov(DATA / f"{n}.h5") for n in NISAR}
     x, y = common_grid(list(nisar.values()))
     power = {n: {p: on_grid(s, p, x, y) for p in s.power} for n, s in nisar.items()}
-    for name in S1:
-        item = load_asf_item(name, DATA)
-        power[name] = {p: warp_to_grid(*sigma0_radar_geometry(item, p), x, y, EPSG).astype("float64") for p in ("hh", "hv")}
     return power, x, y, {n: s.looks for n, s in nisar.items()}
 
 
 def ice_mask(name, bands, looks):
-    """Ice detection on one scene, before tracking: (ice, valid) bool arrays on the common grid.
+    """Ice detection on one NISAR scene, before tracking: (ice, valid) bool arrays on the common grid.
 
-    NISAR (HH+VV): open water where HH is more than 3 dB below VV, the rule verify_chukchi.py checks
-    against AMSR2. Sentinel-1 (HH+HV, no VV): darkest k-means class on HH+HV. That rule is NOT validated;
-    at C-band the dark class can also be smooth thin ice, so it may remove some ice as well as water.
+    Open water where HH is more than 3 dB below VV (after a 7x7 Lee filter), the rule verify_chukchi.py
+    checks against AMSR2.
     """
-    nisar = name.startswith("NISAR")
-    pols = ("hh", "vv") if nisar else ("hh", "hv")
-    valid = np.all([np.isfinite(bands[p]) for p in pols], axis=0)
-    db = {p: to_db(lee_filter(np.where(valid, bands[p], np.nanmedian(bands[p])),
-                              enl=looks[name][p] if nisar else 4 * ENL_EW_GRDM)) for p in pols}
-    if nisar:
-        water = water_from_copol_ratio(db["hh"], db["vv"])
-    else:
-        _, centres = kmeans_classes(db["hh"][valid][::50], db["hv"][valid][::50])
-        water = db["hh"] < dark_threshold(centres)
-    return valid & ~water, valid
+    valid = np.isfinite(bands["hh"]) & np.isfinite(bands["vv"])
+    db = {p: to_db(lee_filter(np.where(valid, bands[p], np.nanmedian(bands[p])), enl=looks[name][p])) for p in ("hh", "vv")}
+    return valid & ~water_from_copol_ratio(db["hh"], db["vv"]), valid
 
 
 def classify_pair(power, tracks):
-    """k-means on the same patch of ice in NISAR and in Sentinel-1 (moved back by the measured drift)."""
-    n_name, s_name = CLASSIFY
-    drift = tracks[(n_name, s_name)]
+    """k-means on the same patch of ice in both NISAR scenes (the later one moved back by the measured drift)."""
+    first, second = CLASSIFY
+    drift = tracks[(first, second)]
     d_row, d_col = int(round(np.median(drift["d_row"]))), int(round(np.median(drift["d_col"])))
-    nis = power[n_name]
-    s1 = {p: shift_back(v, d_row, d_col) for p, v in power[s_name].items()}
-    valid = np.all([np.isfinite(v) for v in (*nis.values(), *s1.values())], axis=0)
+    later = {p: shift_back(v, d_row, d_col) for p, v in power[second].items()}
+    valid = np.all([np.isfinite(v) for v in (*power[first].values(), *later.values())], axis=0)
     r, c, size = largest_clean_square(valid)
     win = (slice(r, r + size), slice(c, c + size))
     out = {}
-    for name, bands, chans, enl in ((n_name, nis, ("hh", "vv"), 39.0), (s_name, s1, ("hh", "hv"), 4 * ENL_EW_GRDM)):
-        db = [to_db(lee_filter(bands[p][win], enl=enl)) for p in chans]
+    for name, bands in ((first, power[first]), (second, later)):
+        chans = ("hh", "vv")
+        db = [to_db(lee_filter(bands[p][win], enl=NISAR_ENL)) for p in chans]
         labels, centres = kmeans_classes(*db)
         thr = dark_threshold(centres)
         out[name] = dict(db=db, labels=labels, centres=centres, threshold=thr, chans=chans,
                          shares=[float(np.mean(labels == i)) for i in range(4)], dark=float(np.mean(db[0] < thr)))
-    a, b = out[n_name]["db"][0], out[s_name]["db"][0]
+    a, b = out[first]["db"][0], out[second]["db"][0]
     quarter = (a < np.percentile(a, 25)), (b < np.percentile(b, 25))
     stats = dict(window=(r, c, size), drift_px=(d_row, d_col),
                  hh_correlation_80m=float(np.corrcoef(a.ravel(), b.ravel())[0, 1]),
@@ -158,7 +141,7 @@ def save_figures(power, x, y, runs, classes):
                           extent=extent, interpolation="nearest")
                 r = removed[(a, b)]
                 ax.plot(x[r["col"].astype(int)] / 1e3, y[r["row"].astype(int)] / 1e3, "kx", ms=5, mew=1.2)
-                removed_note = f", {len(r['row'])} removed (x)"
+                removed_note = f"\n{len(r['row'])} arrows removed (x)"
             vx, vy, speed = to_velocity(t["d_row"], t["d_col"], SPACING, hours_between(a, b))
             q = ax.quiver(x[t["col"].astype(int)] / 1e3, y[t["row"].astype(int)] / 1e3, vx, vy, speed, cmap="plasma",
                           norm=norm, angles="xy", scale_units="xy", scale=0.02, width=0.003)
@@ -171,7 +154,7 @@ def save_figures(power, x, y, runs, classes):
 
     fig, axes = plt.subplots(2, 2, figsize=(13, 12))
     for col, (name, c) in enumerate(classes.items()):
-        sensor = "NISAR L-band" if name.startswith("NISAR") else "Sentinel-1 C-band"
+        sensor = "NISAR L-band"
         axes[0, col].imshow(c["db"][0], cmap="gray", vmin=np.percentile(c["db"][0], 2), vmax=np.percentile(c["db"][0], 98))
         axes[0, col].set_title(f"{sensor} HH (dB), {start_time(name):%d %b %H:%M} UTC")
         axes[1, col].imshow(c["labels"], cmap="viridis", interpolation="nearest")
@@ -182,18 +165,13 @@ def save_figures(power, x, y, runs, classes):
 def store(db, x, y, tracks, classes, stats):
     products = {p.properties["sceneName"]: p for p in find()}
     scenes = []
-    for name in SCENES:
-        nisar = name.startswith("NISAR")
-        scenes.append(mongo_store.scene_doc(
-            name, "NISAR" if nisar else "Sentinel-1", "GCOV" if nisar else "GRD", start_time(name),
-            DATA / (f"{name}.h5" if nisar else f"{name}.SAFE"), products[name].geometry,
-            ["HH", "VV"] if nisar else ["HH", "HV"], "L" if nisar else "C",
-            f"EPSG:{EPSG}" if nisar else "radar geometry (ground range), tie points in EPSG:4326"))
+    for name in NISAR:
+        scenes.append(mongo_store.scene_doc(name, "NISAR", "GCOV", start_time(name), DATA / f"{name}.h5",
+                                            products[name].geometry, ["HH", "VV"], "L", f"EPSG:{EPSG}"))
     for doc in scenes:
         db.scenes.replace_one({"name": doc["name"]}, doc, upsert=True)
     for name, c in classes.items():
-        note = ("Dark class = thin ice / leads, not confirmed open water. "
-                + ("Thermal noise removed." if name.startswith("NISAR") else "Thermal noise NOT removed; HV shows a sub-swath step."))
+        note = "Dark class = thin ice / leads, not confirmed open water. Thermal noise removed."
         doc = mongo_store.result_doc(name, "k-means k=4, then HH threshold between the two darkest centres",
                                      c["chans"], c["shares"], c["threshold"], c["dark"], stats["window"], note)
         db.results.replace_one({"scene": name, "method": doc["method"]}, doc, upsert=True)

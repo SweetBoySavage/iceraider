@@ -10,7 +10,7 @@ Goal: (1) detect sea ice in radar images, (2) track and predict where it moves.
 | Ice / open-water detection | **Done and frozen. Do not retune.** |
 | Ice tracking between two images | Works (NISAR pair, cross-sensor with Sentinel-1) |
 | Trajectory *prediction* | **Not started** |
-| App / interface | First version works (static ice). Start: `python scripts/run_app.py`. See `docs/INTERFACE.md`. **Not yet looked at in a real browser** |
+| App / interface | First version works (static ice). Start: `python scripts/run_app.py`. See `docs/INTERFACE.md`. The user checked the first version; the clean-up after that (one-screen panel, toggles, richer verdict) still needs a look in a browser |
 | Presentation | **Not started** |
 | Step-by-step notebook for NISAR | Not built (original notebook untouched) |
 | Branch `nisar-loader` -> `main` | Merged on 14 Nov (pull request #1). The land mask followed in a second pull request |
@@ -35,6 +35,8 @@ First building blocks for trajectory:
 - Ice is static. Next: feed one ice map per time step from the trajectory prediction; make the ice margin depend on
   speed, drift and image age (agreed to wait for the prediction).
 - Tested with pytest and by running the page script in Node with a fake browser. No real browser on this machine.
+- Open: look at the clean-up in a browser; September route starts inside the ice; no pull request yet;
+  `--host 0.0.0.0` option was added on my own initiative (remove it if not wanted).
 
 ## Land mask (added 14 Nov, late)
 

@@ -120,8 +120,8 @@ Rules (all in `scripts/route_safety.py`):
 
 **Known weak spots**
 
-- **Not yet looked at in a real browser.** It was tested with pytest and by running the page script in Node.
-  Expect small visual fixes.
+- **The clean-up of 15 Nov (evening) is not yet looked at in a real browser.** The first version was checked by the user.
+  The clean-up was tested with pytest and by running the page script in Node. Expect small visual fixes.
 - Both default routes are NOT SAFE (Oct: ice at km 306; Sep: starts inside ice). Fine for a proof of concept.
 - September uses training scenes only, so the ice map looks better there than on new images.
 

@@ -95,6 +95,10 @@ displacement over the day:
 On day 1 the ice turned by about 70° compared with day 0 (persistence: 67° direction error). The model,
 driven by the wind, got the direction within 6° and the length within 0.6 km.
 
+`figures/chukchi_drift_forecast_check.png`: the comparison piece of ice by piece of ice. For every forecast
+arrow with a NISAR arrow starting within 4 km: the start (white), where NISAR saw the ice go (blue), where the
+model said it would go (orange), the error between the two (red) and persistence (dashed).
+
 `figures/chukchi_drift_forecast.png`: all 176 forecast arrows (orange) and all NISAR-tracked arrows (blue)
 at map scale, day 1 (left) and day 2 (right), same map extent in both panels. NISAR arrows exist only where
 two passes overlap and the tracking succeeded: 128 on day 1, but only 11 on day 2 (the 29/30 Oct passes

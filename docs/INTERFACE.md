@@ -2,15 +2,36 @@
 
 Shows a ship route through the Chukchi Sea on our NISAR ice map and says whether the route is safe.
 
-## Start it
+## Install and start (about 2 minutes)
+
+You need **git** and **Python 3.12 or newer**. No radar data, no accounts, no database.
 
 ```bash
-pip install numpy pyproj          # already there if you installed requirements-nisar.txt
-python scripts/run_app.py         # opens http://127.0.0.1:8000/   (options: --port 8001, --no-browser)
+git clone https://github.com/SweetBoySavage/iceraider.git
+cd iceraider
+git checkout ship-route-interface      # until the branch is merged into main
+
+python -m venv .venv
+source .venv/bin/activate              # Windows: .venv\Scripts\activate
+pip install numpy pyproj
+
+python scripts/run_app.py              # opens http://127.0.0.1:8000/
 ```
 
-- Nothing else is needed. The ready-made maps are in `app/data/` (in git, about 13 MB).
+- Already have the repo? `git pull`, then `git checkout ship-route-interface`.
+- Port in use? `python scripts/run_app.py --port 8001`.
+- No browser opens? Go to `http://127.0.0.1:8000/` yourself. Use Chrome, Edge or Firefox.
+- Stop the app with Ctrl+C in the terminal.
+- The ready-made maps are in `app/data/` (in git, about 13 MB), so nothing is computed at start.
 - The page shows a loading bar and unlocks when everything is loaded.
+
+## Use it in 30 seconds
+
+1. Pick a **scenario** at the top left.
+2. Read the **verdict** card: safe or not, and where the first conflict is.
+3. Press **Play** or the **arrow keys** to move the ship along the route.
+4. Change **ship length, speed and margins** with the sliders. The verdict updates at once.
+5. **Drag a route point** to steer around the ice.
 
 ## What you see
 
@@ -61,6 +82,41 @@ Rules (all in `scripts/route_safety.py`):
 - Cells of 400 m. A cell is ice when at least 25 % of it is ice.
 - September: the model was trained on these images, so its ice map looks better there than on new images.
 - The time bar shows how old the radar image under the ship is.
+
+## What is in this version, and what is not
+
+**Added**
+
+| What | Why |
+|---|---|
+| Stitched ice map per period (`build_mosaic.py`) | One scene is about 240 km wide; a 1,000 km route needs many scenes |
+| Two scenarios with a switch | Oct has test data and the checked tracking; Sep has the best covered route |
+| Safety check with margins around ice and coast | The core question: can the ship pass? |
+| Ship length and speed sliders | Asked for in the assignment |
+| Time slider, play, arrow keys | To follow the ship along the route |
+| Draggable route points | Little work, and lets you steer around ice |
+| "No radar image" as its own state | We do not call water safe that we never saw |
+| Age of the radar image under the ship | Old images are less trustworthy: ice drifts about 10 km per day |
+| Maps committed to git | The app must start anywhere with one command |
+
+**Not added**
+
+| What | Why not |
+|---|---|
+| Moving ice | The trajectory prediction is not built yet. Every image is shown as taken |
+| Hourly ice frames | NISAR sees a spot at most 2 - 3 times in a week. Hourly frames must come from the prediction |
+| Margin that grows with speed, drift and image age | Agreed to wait for the prediction. The margin is a fixed number for now |
+| Sentinel-1 or AMSR2 to fill gaps | Decision: NISAR only |
+| The 6 scenes of 29 - 31 Oct with a dead channel | The model needs HH and VV; one of them is empty there |
+| Sea depth | Idea only, no data loaded |
+| Automatic route finding | Out of scope; the user moves the route by hand |
+
+**Known weak spots**
+
+- **Not yet looked at in a real browser.** It was tested with pytest and by running the page script in Node.
+  Expect small visual fixes.
+- Both default routes are NOT SAFE (Oct: ice at km 306; Sep: starts inside ice). Fine for a proof of concept.
+- September uses training scenes only, so the ice map looks better there than on new images.
 
 ## Limits (say these in the presentation)
 

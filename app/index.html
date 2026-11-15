@@ -47,6 +47,7 @@
     <h2 class="sub-head">Show on the map</h2>
     <div class="grid2 toggles">
       <label><input type="checkbox" id="show-ice" checked><i class="sw ice-c"></i>Sea ice</label>
+      <label title="The ice moves with the 12-day drift forecast (OSI SAF drift + drift model + ERA5 wind). Off: every image as taken."><input type="checkbox" id="show-drift" checked><i class="sw drift-c"></i>Ice moves (forecast)</label>
       <label><input type="checkbox" id="show-route" checked><i class="sw route-c"></i>Route</label>
       <label><input type="checkbox" id="show-iceMargin" checked><i class="sw icezone-c"></i>Ice safety margin</label>
       <label><input type="checkbox" id="show-coastMargin" checked><i class="sw coastzone-c"></i>Coast safety margin</label>
@@ -68,7 +69,10 @@
         <input type="range" id="ice_buffer_m" min="0" max="10000" step="100"></label>
       <label>Margin around coast <output id="o-coast_margin_m"></output>
         <input type="range" id="coast_margin_m" min="0" max="10000" step="100"></label>
+      <label id="delay-box">Leave later by <output id="o-delay_h"></output>
+        <input type="range" id="delay_h" min="0" max="288" step="6" value="0"></label>
     </div>
+    <p class="note" id="drift-note"></p>
     <div class="foot">
       <p class="note">Drag a route point to steer. Scroll to zoom.</p>
       <button id="reset">Reset</button>
@@ -96,6 +100,7 @@
     <input type="range" id="time" min="0" max="1" step="0.01" value="0">
   </div>
 </main>
+<script src="drift.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

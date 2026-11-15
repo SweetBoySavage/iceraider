@@ -101,3 +101,70 @@ def test_verdict_never_says_clear_when_part_of_the_route_is_unseen():
     assert rs.verdict(dist, clear, 10)["first_conflict"] is None
     with pytest.raises(ValueError):
         rs.verdict(dist, clear, speed_kn=0)
+
+
+# ---------- moving ice ----------
+DAY = 86_400.0
+
+
+def drift(u_km_day=10.0, v_km_day=0.0, days=4, horizon_days=3.0):
+    """A uniform drift along the map x axis on a 3 x 3 node grid that covers the test map, windows of one day."""
+    shape = (days, 3, 3)
+    return {"u": np.full(shape, u_km_day, "float32"), "v": np.full(shape, v_km_day, "float32"),
+            "x0": -20_000.0, "y0": 20_000.0, "node_m": 20_000.0, "edges_s": np.arange(days + 1) * DAY,
+            "horizon_s": horizon_days * DAY}
+
+
+def moving_bundle():
+    """The test map with its ice cell (cell 7) seen at t = 0, and a uniform drift of 0.4 km/day towards +x."""
+    b = bundle()
+    b["drift"], b["scene_time_s"] = drift(u_km_day=0.4), np.array([0.0])
+    return b
+
+
+def test_displacement_sums_the_windows_and_goes_back_in_time():
+    d = drift(u_km_day=10.0, v_km_day=-5.0)
+    dx, dy = rs.displacement(d, [0.0], [0.0], 0.0, 1.5 * DAY)
+    assert dx[0] == pytest.approx(15_000) and dy[0] == pytest.approx(-7_500)
+    dx, _ = rs.displacement(d, [0.0], [0.0], 1.5 * DAY, 0.0)
+    assert dx[0] == pytest.approx(-15_000)
+    dx, _ = rs.displacement(d, [0.0], [0.0], 3.5 * DAY, 9 * DAY)                  # after the last window: no motion
+    assert dx[0] == pytest.approx(5_000)
+    d["u"][1] = 20.0                                                                 # second window faster
+    assert rs.displacement(d, [0.0], [0.0], 0.0, 2 * DAY)[0][0] == pytest.approx(30_000)
+
+
+def test_origin_of_undoes_the_move_also_for_a_drift_that_changes_in_space():
+    d = drift()
+    d["u"][:, :, 2] = 30.0                                                           # faster towards +x
+    x, y, t = np.array([1_000.0, 15_000.0]), np.array([0.0, -5_000.0]), np.array([DAY, 2 * DAY])
+    px, py = rs.origin_of(d, x, y, 0.0, t, iterations=12)
+    fx, fy = rs.displacement(d, px, py, 0.0, t)
+    assert np.allclose(px + fx, x, atol=1) and np.allclose(py + fy, y, atol=1)
+
+
+def test_moving_ice_hits_the_ship_only_when_it_has_drifted_onto_the_route():
+    b = moving_bundle()                                                               # ice in cell 7 drifts 400 m per day to +x
+    early = rs.check_route(b, along_the_row(5, 5) + [(5 * 400 + 201.0, 200.0)], 100, 0, 0, speed_kn=10, depart_s=0.0)
+    assert set(early["status"].tolist()) == {rs.CLEAR}                              # cell 5, water, at t = 0
+    cell9 = along_the_row(9, 9) + [(9 * 400 + 201.0, 200.0)]                          # no image covers cell 9
+    now = rs.check_route(b, cell9, 100, 0, 0, speed_kn=10, depart_s=0.0)
+    assert set(now["status"].tolist()) == {rs.UNVERIFIED}                            # at t = 0 the ice is still in cell 7
+    later = rs.check_route(b, cell9, 100, 0, 0, speed_kn=10, depart_s=2 * DAY)
+    assert set(later["status"].tolist()) == {rs.ICE_HIT} and set(later["scene"].tolist()) == {0}   # 2 days on: 800 m to +x
+    off = rs.check_route(b, cell9, 100, 0, 0, speed_kn=10, depart_s=2 * DAY, moving=False)
+    assert set(off["status"].tolist()) == {rs.UNVERIFIED}                            # switched off: the static answer
+
+
+def test_moving_check_keeps_the_static_rules_for_land_coast_and_no_image():
+    b = moving_bundle()
+    out = rs.check_route(b, along_the_row(0, 9), ship_m=100, ice_buffer_m=0, coast_margin_m=0, speed_kn=40, depart_s=0.0)
+    names = [rs.STATUS_NAMES[s] for s in out["status"]]
+    assert names[:3] == ["land", "unverified", "clear"] and names[7] == "ice" and names[-1] == "unverified"
+    assert out["scene"][2] == 0 and out["scene"][0] == rs.NO_SCENE and "time_s" in out
+
+
+def test_after_the_forecast_horizon_nothing_is_known_about_the_ice():
+    b = moving_bundle()
+    out = rs.check_route(b, along_the_row(4, 5), 100, 0, 0, speed_kn=10, depart_s=5 * DAY)       # horizon: 3 days
+    assert set(out["status"].tolist()) == {rs.UNVERIFIED}

@@ -10,9 +10,12 @@ const BASE_COLOR = { [CLASS.ICE]: [232, 243, 250], [CLASS.WATER]: [15, 76, 117],
 const PARAMS = ["ship_m", "speed_kn", "ice_buffer_m", "coast_margin_m"];
 const KNOT_KMH = 1.852;
 const PLAY_HOURS_PER_SECOND = 6;
-const LAYERS = ["ice", "route", "iceMargin", "coastMargin", "images", "grid", "names"];      // what the check boxes switch on and off
+const LAYERS = ["ice", "drift", "route", "iceMargin", "coastMargin", "images", "grid", "names"];      // what the check boxes switch on and off
+const TILE = 50;                                // moving ice is drawn in tiles of 50 x 50 cells (20 km), warped by the drift at their corners
+const MARGIN_ALPHA = 190 / 255;
 
-const state = { scenarios: {}, scenarioId: null, meta: null, cls: null, iceSteps: null, landSteps: null, base: null, overlay: null, params: {}, route: [], result: null,
+const state = { scenarios: {}, scenarioId: null, meta: null, cls: null, sceneIdx: null, iceSteps: null, landSteps: null, base: null, overlay: null, params: {}, route: [], result: null,
+                drift: null, moving: false, delayH: 0, layers: [], staticBelow: null, staticAbove: null,
                 hours: 0, playing: false, show: Object.fromEntries(LAYERS.map((k) => [k, true])), view: { scale: 1, ox: 0, oy: 0, rot: 0 }, world: [], land: [], drag: null, dirty: true, checkId: 0 };
 
 // ---------- map projection (EPSG:3413, polar stereographic, true at 70 N, 45 W down) ----------
@@ -54,7 +57,11 @@ const fmtKm = (km) => `${Math.round(km).toLocaleString("en-US")} km`;
 const fmtHours = (h) => h >= 48 ? `${(h / 24).toFixed(1)} days` : `${h.toFixed(1)} h`;
 const fmtLatLon = (lat, lon) => `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? "N" : "S"}  ${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? "E" : "W"}`;
 const fmtParam = { ship_m: (v) => `${v} m`, speed_kn: (v) => `${v} kn`, ice_buffer_m: (v) => `${(v / 1000).toFixed(1)} km`, coast_margin_m: (v) => `${(v / 1000).toFixed(1)} km` };
+const fmtDelay = (h) => h === 0 ? "on time" : h < 48 ? `${h} h` : `${(h / 24).toFixed(h % 24 ? 2 : 0)} days`;
+// The clock counts hours from the scenario's departure time; the ship itself leaves state.delayH hours later.
 const timeAt = (hours) => new Date(Date.parse(state.meta.route.departure_utc) + hours * 3600e3);
+const secondsAt = (hours) => timeAt(hours).getTime() / 1000;
+const maxHours = () => state.drift ? state.drift.forecast_days * 24 : (state.result ? state.result.verdict.hours : 0);
 
 // ---------- loading ----------
 function progress(share, text) { $("loading-bar").style.width = `${Math.round(share * 100)}%`; $("loading-text").textContent = text; }
@@ -76,6 +83,16 @@ async function loadPixels(url, width, height) {
   return ctx.getImageData(0, 0, width, height).data;
 }
 
+async function loadDrift(dir) {                 // the 12-day ice drift forecast of a scenario, or null when it has none
+  const reply = await fetch(dir + "drift.json");
+  if (!reply.ok) return null;
+  const info = await reply.json(), bin = await fetch(dir + "drift.bin");
+  if (!bin.ok) throw new Error(`${dir}drift.bin: ${bin.status}`);
+  const data = new Float32Array(await bin.arrayBuffer());
+  if (data.length !== (info.edges_utc.length - 1) * 2 * info.nx * info.ny) throw new Error(`${dir}drift.bin does not match drift.json`);
+  return { ...info, data, edges_s: info.edges_utc.map((t) => Date.parse(t) / 1000), horizon_s: Date.parse(info.horizon_utc) / 1000 };
+}
+
 async function load() {                         // every scenario is loaded before the page unlocks: switching is instant
   progress(0.02, "Reading the outline of the world…");
   state.world = (await getJson("data/world.json")).polygons;
@@ -89,20 +106,27 @@ async function load() {                         // every scenario is loaded befo
     const cells = await loadPixels(dir + "cells.png", meta.nx, meta.ny);
     progress(share(0.45), `${item.label}: loading distances to ice and coast…`);
     const dist = await loadPixels(dir + "distance.png", meta.nx, meta.ny);
-    const cls = new Uint8Array(n), iceSteps = new Uint8Array(n), landSteps = new Uint8Array(n);
-    for (let i = 0; i < n; i++) { cls[i] = cells[4 * i]; iceSteps[i] = dist[4 * i]; landSteps[i] = dist[4 * i + 1]; }
-    state.scenarios[item.id] = { meta, cls, iceSteps, landSteps };
+    const cls = new Uint8Array(n), sceneIdx = new Uint8Array(n), iceSteps = new Uint8Array(n), landSteps = new Uint8Array(n);
+    for (let i = 0; i < n; i++) { cls[i] = cells[4 * i]; sceneIdx[i] = cells[4 * i + 1]; iceSteps[i] = dist[4 * i]; landSteps[i] = dist[4 * i + 1]; }
+    progress(share(0.8), `${item.label}: loading the ice drift forecast…`);
+    state.scenarios[item.id] = { meta, cls, sceneIdx, iceSteps, landSteps, drift: await loadDrift(dir) };
     await new Promise(requestAnimationFrame);
   }
   $("scenario").innerHTML = list.map((item) => `<option value="${item.id}">${item.label}</option>`).join("");
   progress(0.92, "Checking the route…");
-  await useScenario(list[0].id);
+  const start = new URLSearchParams(location.hash.slice(1));       // optional link: #scenario=oct&delay=24&t=96 (hours)
+  await useScenario(state.scenarios[start.get("scenario")] ? start.get("scenario") : list[0].id);
+  if (start.has("delay") && state.drift) {
+    state.delayH = Math.max(0, Math.min(Number(start.get("delay")) || 0, 288)); $("delay_h").value = state.delayH; $("o-delay_h").textContent = fmtDelay(state.delayH);
+    await check();
+  }
+  if (start.has("t")) setHours(Number(start.get("t")) || 0);
   progress(1, "Ready");
   $("loading").classList.add("done");
 }
 
 async function useScenario(id) {
-  Object.assign(state, state.scenarios[id], { scenarioId: id, result: null, hours: 0 });
+  Object.assign(state, state.scenarios[id], { scenarioId: id, result: null, hours: 0, layers: [], staticBelow: null, staticAbove: null, iceFrame: null, frameDirty: true });
   state.overlay = new OffscreenCanvas(state.meta.nx, state.meta.ny);
   const lons = state.meta.route.points_lat_lon.map((p) => p[1]);
   state.midLon = lons.reduce((a, b) => a + b, 0) / lons.length;
@@ -112,7 +136,13 @@ async function useScenario(id) {
   setPlaying(false);
   $("scenario").value = id;
   $("scenario-note").textContent = `${state.meta.route.name}. ${state.meta.note}`;
-  resetValues(); paintBase(); paintOverlay();
+  const d = state.drift;
+  $("show-drift").disabled = !d; $("delay-box").classList.toggle("off", !d);
+  $("drift-note").textContent = d ? `The ice moves with a ${d.forecast_days}-day drift forecast: OSI SAF drift until ${fmtTime(new Date(d.edges_utc[1]))}, then the drift model with ERA5 wind. The ship is checked against the ice where it is when the ship passes; the route colours show that check, at the ship's own time.`
+                                  : "No drift forecast for this period: every radar image is shown as it was taken.";
+  state.moving = !!d && state.show.drift;
+  if (d) buildSceneLayers();
+  resetValues(); paintAll();
   await check();
   resize(); fitRoute();
 }
@@ -144,16 +174,119 @@ function paintOverlay() {                      // the safety margins around ice 
   state.dirty = true;
 }
 
+function paintAll() {                          // everything that depends on the check boxes and the margins
+  if (state.moving) { paintSceneLayers(); paintStatic(); } else { paintBase(); paintOverlay(); }
+}
+
+// Moving ice: each radar image is a layer of its own (a canvas cropped to its cells) that is drawn in 20 km tiles,
+// each tile warped by the drift at its corners from the image time to the clock time (app/drift.js, the same rule as
+// the safety check in scripts/route_safety.py). Land, the coast strip and the coast margin do not move.
+function buildSceneLayers() {
+  const { nx, ny, scenes } = state.meta, { cls, sceneIdx } = state, n = scenes.length;
+  const box = scenes.map(() => [Infinity, Infinity, -1, -1]), tiles = scenes.map(() => new Set());
+  for (let r = 0; r < ny; r++) for (let c = 0; c < nx; c++) {
+    const i = r * nx + c, s = sceneIdx[i];
+    if (s >= n || (cls[i] !== CLASS.ICE && cls[i] !== CLASS.WATER)) continue;
+    const b = box[s];
+    if (c < b[0]) b[0] = c; if (r < b[1]) b[1] = r; if (c > b[2]) b[2] = c; if (r > b[3]) b[3] = r;
+    tiles[s].add(Math.floor(r / TILE) * 10000 + Math.floor(c / TILE));
+  }
+  state.layers = box.map((b, s) => b[2] < 0 ? null : { s, c0: b[0], r0: b[1], w: b[2] - b[0] + 1, h: b[3] - b[1] + 1,
+    time: Date.parse(scenes[s].time_utc) / 1000, tiles: [...tiles[s]].map((k) => [Math.floor(k / 10000), k % 10000]),
+    canvas: new OffscreenCanvas(b[2] - b[0] + 1, b[3] - b[1] + 1) }).filter(Boolean).sort((a, b) => a.time - b.time);   // newest drawn last = on top
+}
+
+function paintSceneLayers() {                  // per image: its sea ice / water and, on its water, the ice margin
+  const { nx, png_step_m: step } = state.meta, p = state.params, { cls, sceneIdx, iceSteps } = state;
+  const iceMax = (p.ship_m / 2 + p.ice_buffer_m) / step, margin = [255, 90, 60];
+  for (const L of state.layers) {
+    const ctx = L.canvas.getContext("2d"), image = ctx.createImageData(L.w, L.h), px = image.data;
+    for (let r = 0; r < L.h; r++) for (let c = 0; c < L.w; c++) {
+      const i = (L.r0 + r) * nx + L.c0 + c, k = cls[i];
+      if (sceneIdx[i] !== L.s || (k !== CLASS.ICE && k !== CLASS.WATER)) continue;
+      let col = BASE_COLOR[k === CLASS.ICE && state.show.ice ? CLASS.ICE : CLASS.WATER];
+      if (state.show.iceMargin && k !== CLASS.ICE && iceSteps[i] <= iceMax) col = col.map((v, j) => v * (1 - MARGIN_ALPHA) + margin[j] * MARGIN_ALPHA);
+      const o = 4 * (r * L.w + c);
+      px[o] = col[0]; px[o + 1] = col[1]; px[o + 2] = col[2]; px[o + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+  }
+  state.dirty = state.frameDirty = true;
+}
+
+function paintStatic() {                       // below the ice: the coast strip as water; above it: land and the coast margin
+  const { nx, ny, png_step_m: step } = state.meta, p = state.params, { cls, landSteps } = state;
+  const landMax = (p.ship_m / 2 + p.coast_margin_m) / step;
+  state.staticBelow = state.staticBelow || new OffscreenCanvas(nx, ny); state.staticAbove = state.staticAbove || new OffscreenCanvas(nx, ny);
+  const below = state.staticBelow.getContext("2d").createImageData(nx, ny), above = state.staticAbove.getContext("2d").createImageData(nx, ny);
+  const pb = below.data, pa = above.data, water = BASE_COLOR[CLASS.WATER], land = BASE_COLOR[CLASS.LAND];
+  for (let i = 0; i < nx * ny; i++) {
+    if (cls[i] === CLASS.COAST) { pb[4 * i] = water[0]; pb[4 * i + 1] = water[1]; pb[4 * i + 2] = water[2]; pb[4 * i + 3] = 255; }
+    if (cls[i] === CLASS.LAND) { pa[4 * i] = land[0]; pa[4 * i + 1] = land[1]; pa[4 * i + 2] = land[2]; pa[4 * i + 3] = 255; }
+    else if (state.show.coastMargin && landSteps[i] <= landMax) { pa[4 * i] = 255; pa[4 * i + 1] = 179; pa[4 * i + 2] = 0; pa[4 * i + 3] = 210; }
+  }
+  state.staticBelow.getContext("2d").putImageData(below, 0, 0); state.staticAbove.getContext("2d").putImageData(above, 0, 0);
+  state.dirty = state.frameDirty = true;
+}
+
+function moved(col, row, fromS, toS) {          // where ice seen at (col, row) at time fromS is at time toS (cells)
+  const m = state.meta, [dx, dy] = Drift.displacement(state.drift, m.x0 + col * m.cell_m, m.y0 - row * m.cell_m, fromS, toS);
+  return [col + dx / m.cell_m, row - dy / m.cell_m];
+}
+
+// Each tile is drawn as two triangles, each warped (affine) from its corners to where the drift moved those corners.
+// Neighbouring tiles share corners, so the moved ice stays in one piece: no gaps, no steps.
+function renderIceFrame(t) {                    // the moving ice at time t, at map-cell resolution, drawn once per time step
+  const { nx, ny } = state.meta;
+  if (!state.iceFrame || state.iceFrame.width !== nx || state.iceFrame.height !== ny) state.iceFrame = new OffscreenCanvas(nx, ny);
+  const g = state.iceFrame.getContext("2d");
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, nx, ny); g.imageSmoothingEnabled = false;
+  drawMovingIce(g, t);
+  state.frameTime = t; state.frameDirty = false;
+}
+
+function drawMovingIce(g, t) {
+  const grow = 1.0;                              // triangles grow by one cell so their anti-aliased edges overlap
+  for (const L of state.layers) {
+    const corner = new Map();                    // moved corner positions of this image at time t
+    const at = (r, c) => { const k = r * 10000 + c; let p = corner.get(k); if (!p) { p = moved(c * TILE, r * TILE, L.time, t); corner.set(k, p); } return p; };
+    for (const [tr, tc] of L.tiles) {
+      const src = [[tc * TILE, tr * TILE], [(tc + 1) * TILE, tr * TILE], [(tc + 1) * TILE, (tr + 1) * TILE], [tc * TILE, (tr + 1) * TILE]];
+      const dst = [at(tr, tc), at(tr, tc + 1), at(tr + 1, tc + 1), at(tr + 1, tc)];
+      for (const [i, j, k] of [[0, 1, 3], [1, 2, 3]]) drawTriangle(g, L, src[i], src[j], src[k], dst[i], dst[j], dst[k], grow);
+    }
+  }
+}
+
+function drawTriangle(g, L, s0, s1, s2, d0, d1, d2, grow) {
+  // affine map A with A(s) = d for the three corners (map cell coordinates on both sides)
+  const sx1 = s1[0] - s0[0], sy1 = s1[1] - s0[1], sx2 = s2[0] - s0[0], sy2 = s2[1] - s0[1], det = sx1 * sy2 - sx2 * sy1;
+  const dx1 = d1[0] - d0[0], dy1 = d1[1] - d0[1], dx2 = d2[0] - d0[0], dy2 = d2[1] - d0[1];
+  const a = (dx1 * sy2 - dx2 * sy1) / det, c = (dx2 * sx1 - dx1 * sx2) / det;
+  const b = (dy1 * sy2 - dy2 * sy1) / det, d = (dy2 * sx1 - dy1 * sx2) / det;
+  const e = d0[0] - a * s0[0] - c * s0[1], f = d0[1] - b * s0[0] - d * s0[1];
+  const cx = (d0[0] + d1[0] + d2[0]) / 3, cy = (d0[1] + d1[1] + d2[1]) / 3;
+  const out = (p) => { const l = Math.hypot(p[0] - cx, p[1] - cy) || 1; return [p[0] + (p[0] - cx) / l * grow, p[1] + (p[1] - cy) / l * grow]; };
+  const [p0, p1, p2] = [out(d0), out(d1), out(d2)];
+  g.save();
+  g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.closePath(); g.clip();
+  g.transform(a, b, c, d, e, f);
+  const x0 = Math.max(Math.min(s0[0], s1[0], s2[0]) - 1, L.c0), y0 = Math.max(Math.min(s0[1], s1[1], s2[1]) - 1, L.r0);
+  const x1 = Math.min(Math.max(s0[0], s1[0], s2[0]) + 1, L.c0 + L.w), y1 = Math.min(Math.max(s0[1], s1[1], s2[1]) + 1, L.r0 + L.h);
+  if (x1 > x0 && y1 > y0) g.drawImage(L.canvas, x0 - L.c0, y0 - L.r0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
+  g.restore();
+}
+
 // ---------- route check (server) ----------
 async function check() {
   const id = ++state.checkId, p = state.params;
-  const query = `scenario=${state.scenarioId}&` + PARAMS.map((k) => `${k}=${p[k]}`).join("&") + "&route=" + state.route.map(([lat, lon]) => `${lat.toFixed(5)},${lon.toFixed(5)}`).join(";");
+  const query = `scenario=${state.scenarioId}&` + PARAMS.map((k) => `${k}=${p[k]}`).join("&") + `&delay_h=${state.delayH}&moving=${state.moving ? 1 : 0}`
+    + "&route=" + state.route.map(([lat, lon]) => `${lat.toFixed(5)},${lon.toFixed(5)}`).join(";");
   const result = await getJson(`api/check?${query}`);
   if (id !== state.checkId) return;            // a newer question is already on its way
   state.result = result;
-  const total = result.verdict.hours;
-  $("time").max = total.toFixed(2);
-  state.hours = Math.min(state.hours, total);
+  $("time").max = maxHours().toFixed(2);
+  state.hours = Math.min(state.hours, maxHours());
   showVerdict(); showTime(); fitPanel();
   state.dirty = true;
 }
@@ -179,8 +312,8 @@ function fitPanel() {                           // the left panel never scrolls:
 }
 
 // ---------- time ----------
-function shipAt(hours) {                        // position, heading and status of the ship after `hours`
-  const r = state.result, km = Math.min(hours * state.params.speed_kn * KNOT_KMH, r.km[r.km.length - 1]);
+function shipAt(hours) {                        // position, heading and status of the ship `hours` after ITS departure (waits at both ends)
+  const r = state.result, km = Math.min(Math.max(hours, 0) * state.params.speed_kn * KNOT_KMH, r.km[r.km.length - 1]);
   let lo = 0, hi = r.km.length - 1;
   while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (r.km[mid] <= km) lo = mid; else hi = mid; }
   const f = r.km[hi] > r.km[lo] ? (km - r.km[lo]) / (r.km[hi] - r.km[lo]) : 0;
@@ -190,15 +323,22 @@ function shipAt(hours) {                        // position, heading and status 
 
 function setHours(hours) {
   if (!state.result) return;
-  state.hours = Math.max(0, Math.min(hours, state.result.verdict.hours));
+  state.hours = Math.max(0, Math.min(hours, maxHours()));
   showTime(); state.dirty = true;
 }
 
-function showTime() {                           // the clock of the time bar: date and time at the ship, and how far it is
+function showTime() {                           // the clock of the time bar: date and time, where the ship is, and which ice drift is used
   const r = state.result; if (!r) return;
   $("time").value = state.hours;
   $("clock").textContent = fmtTime(timeAt(state.hours));
-  $("shipinfo").textContent = `${fmtHours(state.hours)} after departure · ${fmtKm(shipAt(state.hours).km)} of ${fmtKm(r.verdict.total_km)}`;
+  const sail = state.hours - state.delayH, total = r.verdict.total_km;
+  let ship = sail < 0 ? `ship leaves in ${fmtHours(-sail)}`
+    : `${fmtHours(sail)} after departure · ${fmtKm(shipAt(sail).km)} of ${fmtKm(total)}${sail >= r.verdict.hours ? " (arrived)" : ""}`;
+  if (state.moving) {
+    const w = Drift.windowAt(state.drift, secondsAt(state.hours));
+    ship += w === 0 ? " · ice: observed drift" : w > 0 ? ` · ice: forecast, day ${Math.floor((secondsAt(state.hours) - state.drift.edges_s[1]) / 86400) + 1}` : "";
+  }
+  $("shipinfo").textContent = ship;
 }
 
 function setPlaying(on) { state.playing = on; state.lastFrame = null; $("play").textContent = on ? "❚❚ Pause" : "▶ Play"; state.dirty = true; }
@@ -271,7 +411,8 @@ function drawSceneTimes() {                     // date and time of each NISAR i
   for (const scene of state.meta.scenes) {
     if (scene.col === null) continue;
     const text = fmtTime(new Date(scene.time_utc)).replace(" UTC", ""), w = ctx.measureText(text).width + 12;
-    let [x, y] = toScreen(scene.col, scene.row);
+    const [col, row] = state.moving ? moved(scene.col, scene.row, Date.parse(scene.time_utc) / 1000, secondsAt(state.hours)) : [scene.col, scene.row];
+    let [x, y] = toScreen(col, row);
     while (placed.some((p) => Math.abs(p.x - x) < (p.w + w) / 2 + 4 && Math.abs(p.y - y) < 24)) y += 25;
     placed.push({ x, y, w });
     ctx.fillStyle = "#0a1018b8"; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 12, w, 22, 6); ctx.fill();
@@ -319,7 +460,7 @@ function drawConflict(now) {
 }
 
 function drawShip() {
-  const ship = shipAt(state.hours), [x, y] = toScreen(ship.col, ship.row), p = state.params;
+  const ship = shipAt(state.hours - state.delayH), [x, y] = toScreen(ship.col, ship.row), p = state.params;
   const ring = (p.ship_m / 2 + p.ice_buffer_m) / state.meta.cell_m * state.view.scale;      // the ice clearance, to scale
   if (ring > 3) { ctx.strokeStyle = "#ffffff99"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(x, y, ring, 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]); }
   ctx.save(); ctx.translate(x, y); ctx.rotate(ship.heading + state.view.rot);
@@ -345,7 +486,12 @@ function draw(now) {
   drawLand();
   ctx.setTransform(k * c, k * s, -k * s, k * c, dpr * ox, dpr * oy);
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(state.base, 0, 0); ctx.drawImage(state.overlay, 0, 0);
+  if (state.moving) {
+    const t = secondsAt(state.hours);
+    if (state.frameDirty || !(Math.abs(state.frameTime - t) < 3600)) renderIceFrame(t);     // the ice moves about one cell per hour: redraw it hourly
+    ctx.drawImage(state.staticBelow, 0, 0); ctx.drawImage(state.iceFrame, 0, 0); ctx.drawImage(state.staticAbove, 0, 0);
+  }
+  else { ctx.drawImage(state.base, 0, 0); ctx.drawImage(state.overlay, 0, 0); }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (state.show.grid) drawGraticule();
   if (state.show.names) drawPlaces();
@@ -359,7 +505,7 @@ function frame(now) {
     if (state.playing) {
       if (state.lastFrame) setHours(state.hours + (now - state.lastFrame) / 1000 * PLAY_HOURS_PER_SECOND);
       state.lastFrame = now;
-      if (state.hours >= state.result.verdict.hours) setPlaying(false);
+      if (state.hours >= maxHours()) setPlaying(false);
     }
     if (state.dirty || state.playing || state.result.verdict.first_conflict) { state.dirty = false; draw(now); }
   }
@@ -371,27 +517,32 @@ function resetValues() {
   const m = state.meta;
   state.route = m.route.points_lat_lon.map((p) => [...p]);
   for (const key of PARAMS) { state.params[key] = m.defaults[key]; $(key).value = m.defaults[key]; $(`o-${key}`).textContent = fmtParam[key](m.defaults[key]); }
+  state.delayH = 0; $("delay_h").value = 0; $("o-delay_h").textContent = fmtDelay(0);
 }
 
 function wire() {
   for (const key of PARAMS) $(key).addEventListener("input", () => {
     state.params[key] = Number($(key).value); $(`o-${key}`).textContent = fmtParam[key](state.params[key]);
-    if (key !== "speed_kn") paintOverlay();
+    if (key !== "speed_kn") paintAll();
     checkSoon();
+  });
+  $("delay_h").addEventListener("input", () => {
+    state.delayH = Number($("delay_h").value); $("o-delay_h").textContent = fmtDelay(state.delayH);
+    showTime(); checkSoon(); state.dirty = true;
   });
   for (const key of LAYERS) $(`show-${key}`).addEventListener("change", () => {
     state.show[key] = $(`show-${key}`).checked;
-    if (key === "ice") paintBase();
-    if (key === "iceMargin" || key === "coastMargin") paintOverlay();
+    if (key === "drift") { state.moving = !!state.drift && state.show.drift; paintAll(); checkSoon(); }
+    if (key === "ice" || key === "iceMargin" || key === "coastMargin") paintAll();
     state.dirty = true;
   });
   $("scenario").addEventListener("change", () => useScenario($("scenario").value).catch(showError));
-  $("reset").onclick = () => { resetValues(); paintOverlay(); setHours(0); fitRoute(); checkSoon(); };
-  $("jump").onclick = () => { setPlaying(false); setHours(state.result.verdict.first_conflict.hours); };
+  $("reset").onclick = () => { resetValues(); paintAll(); setHours(0); fitRoute(); checkSoon(); };
+  $("jump").onclick = () => { setPlaying(false); setHours(state.delayH + state.result.verdict.first_conflict.hours); };
   $("time").addEventListener("input", () => { setPlaying(false); setHours(Number($("time").value)); });
   $("back").onclick = () => { setPlaying(false); setHours(state.hours - stepHours()); };
   $("fwd").onclick = () => { setPlaying(false); setHours(state.hours + stepHours()); };
-  $("play").onclick = () => { if (!state.playing && state.hours >= state.result.verdict.hours) setHours(0); setPlaying(!state.playing); };
+  $("play").onclick = () => { if (!state.playing && state.hours >= maxHours()) setHours(0); setPlaying(!state.playing); };
   window.addEventListener("keydown", (event) => {
     if (!state.result || event.target.tagName === "SELECT" || event.target.tagName === "INPUT" && event.target.id !== "time") return;
     if (event.key === "ArrowLeft") $("back").click();

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ice Raider: ship route check</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="loading">
+  <div class="loading-box">
+    <div class="brand">ICE RAIDER</div>
+    <div id="loading-text">Loading…</div>
+    <div class="bar"><div id="loading-bar"></div></div>
+  </div>
+</div>
+
+<aside id="panel">
+  <header>
+    <div class="brand">ICE RAIDER</div>
+    <div class="sub">Ship route check on NISAR radar ice maps</div>
+    <div class="sub" id="route-name"></div>
+  </header>
+
+  <section id="verdict" class="card">
+    <div id="verdict-state">…</div>
+    <div id="verdict-text"></div>
+    <div id="share" class="share"></div>
+    <table>
+      <tr><td>Distance</td><td id="v-km"></td></tr>
+      <tr><td>Travel time</td><td id="v-hours"></td></tr>
+      <tr><td><i class="dot clear"></i>Open water, observed</td><td id="v-clear"></td></tr>
+      <tr><td><i class="dot unverified"></i>No radar image</td><td id="v-unverified"></td></tr>
+      <tr><td><i class="dot ice"></i>Inside ice margin</td><td id="v-ice"></td></tr>
+      <tr><td><i class="dot land"></i>Inside coast margin</td><td id="v-land"></td></tr>
+    </table>
+    <button id="jump" hidden>Go to first conflict</button>
+  </section>
+
+  <section class="card">
+    <h2>Ship</h2>
+    <label>Length <output id="o-ship_m"></output>
+      <input type="range" id="ship_m" min="10" max="500" step="10"></label>
+    <label>Speed <output id="o-speed_kn"></output>
+      <input type="range" id="speed_kn" min="1" max="30" step="0.5"></label>
+    <h2>Safety margins</h2>
+    <label>Around ice <output id="o-ice_buffer_m"></output>
+      <input type="range" id="ice_buffer_m" min="0" max="10000" step="100"></label>
+    <label>Around coast <output id="o-coast_margin_m"></output>
+      <input type="range" id="coast_margin_m" min="0" max="10000" step="100"></label>
+    <button id="reset">Reset route and values</button>
+  </section>
+
+  <section class="card legend">
+    <h2>Map</h2>
+    <div><i class="sw ice-c"></i>Sea ice</div>
+    <div><i class="sw water-c"></i>Open water</div>
+    <div><i class="sw nodata-c"></i>No radar image</div>
+    <div><i class="sw land-c"></i>Land</div>
+    <div><i class="sw icezone-c"></i>Ice safety margin</div>
+    <div><i class="sw coastzone-c"></i>Coast safety margin</div>
+    <p class="note">The ice does not move yet: every radar image is shown as it was taken (27–31 Oct 2026).
+      Drag a route point to change the route. Scroll to zoom, drag to move the map.</p>
+  </section>
+</aside>
+
+<main>
+  <canvas id="map"></canvas>
+  <div id="cursor"></div>
+  <div id="timeline">
+    <div class="row">
+      <button id="back" title="Left arrow">◀</button>
+      <button id="play" title="Space">▶ Play</button>
+      <button id="fwd" title="Right arrow">▶</button>
+      <label class="step">Step
+        <select id="step"><option value="1">1 h</option><option value="3" selected>3 h</option><option value="6">6 h</option><option value="12">12 h</option></select>
+      </label>
+      <div id="clock"></div>
+      <div id="shipinfo"></div>
+    </div>
+    <canvas id="strip" height="10"></canvas>
+    <input type="range" id="time" min="0" max="1" step="0.01" value="0">
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

@@ -10,7 +10,7 @@ Goal: (1) detect sea ice in radar images, (2) track and predict where it moves.
 | Ice / open-water detection | **Done and frozen. Do not retune.** |
 | Ice tracking between two images | Works (NISAR pair, cross-sensor with Sentinel-1) |
 | Trajectory *prediction* | **Not started** |
-| App / interface | **Not started** |
+| App / interface | First version works (static ice). Start: `python scripts/run_app.py`. See `docs/INTERFACE.md`. **Not yet looked at in a real browser** |
 | Presentation | **Not started** |
 | Step-by-step notebook for NISAR | Not built (original notebook untouched) |
 | Branch `nisar-loader` -> `main` | Merged on 14 Nov (pull request #1). The land mask followed in a second pull request |
@@ -24,6 +24,15 @@ Goal: (1) detect sea ice in radar images, (2) track and predict where it moves.
 First building blocks for trajectory:
 - A buoy loader (IABP). Buoys are the only reference with real motion. Best spot: 73-75 N, 155-162 W, 27-28 Oct.
 - Decide on a driver for prediction (wind?). Not looked at yet. Without it, only "continue the last drift" is possible.
+
+## Route interface (added 15 Nov)
+
+- Branch `ship-route-interface`. One command: `python scripts/run_app.py` (needs numpy + pyproj only; map is in `app/data/`).
+- Map: 9 NISAR scenes of 27 - 31 Oct stitched (`scripts/build_mosaic.py`), 400 m cells, newest scene wins.
+- Default route (`config/route.json`): 1,250 km along the ice edge, chosen by the user. Verdict now: NOT SAFE, ice at km 306.
+- Ice is static. Next: feed one ice map per time step from the trajectory prediction; make the ice margin depend on
+  speed, drift and image age (agreed to wait for the prediction).
+- Tested with pytest and by running the page script in Node with a fake browser. No real browser on this machine.
 
 ## Land mask (added 14 Nov, late)
 

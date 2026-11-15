@@ -1,4 +1,4 @@
-"""End-to-end run for the Chukchi Sea test area, NISAR only: load -> common grid -> ice detection -> track -> classify -> MongoDB.
+"""End-to-end run for the Chukchi Sea test area, NISAR only: load -> common grid -> track -> classify -> MongoDB.
 
 Run after scripts/download_scenes.py:   python scripts/run_chukchi.py
 Add --no-db to skip MongoDB. Writes figures to figures/chukchi_*.png. Tracking is described in docs/ice_tracking.md.
@@ -15,10 +15,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts import mongo_store                                               # noqa: E402
-from scripts.classify import (dark_threshold, kmeans_classes, largest_clean_square, lee_filter, to_db,  # noqa: E402
-                              water_from_copol_ratio)
+from scripts.classify import dark_threshold, kmeans_classes, largest_clean_square, lee_filter, to_db  # noqa: E402
 from scripts.download_scenes import SCENES, find                              # noqa: E402
-from scripts.ice_tracking import highpass, keep_on_ice, to_velocity, track                 # noqa: E402
+from scripts.ice_tracking import highpass, to_velocity, track                 # noqa: E402
 from scripts.nisar_loader import load_gcov                                    # noqa: E402
 
 DATA, FIGS = ROOT / "data", ROOT / "figures"
@@ -72,18 +71,7 @@ def load_everything():
     nisar = {n: load_gcov(DATA / f"{n}.h5") for n in NISAR}
     x, y = common_grid(list(nisar.values()))
     power = {n: {p: on_grid(s, p, x, y) for p in s.power} for n, s in nisar.items()}
-    return power, x, y, {n: s.looks for n, s in nisar.items()}
-
-
-def ice_mask(name, bands, looks):
-    """Ice detection on one NISAR scene, before tracking: (ice, valid) bool arrays on the common grid.
-
-    Open water where HH is more than 3 dB below VV (after a 7x7 Lee filter), the rule verify_chukchi.py
-    checks against AMSR2.
-    """
-    valid = np.isfinite(bands["hh"]) & np.isfinite(bands["vv"])
-    db = {p: to_db(lee_filter(np.where(valid, bands[p], np.nanmedian(bands[p])), enl=looks[name][p])) for p in ("hh", "vv")}
-    return valid & ~water_from_copol_ratio(db["hh"], db["vv"]), valid
+    return power, x, y
 
 
 def classify_pair(power, tracks):
@@ -111,46 +99,39 @@ def classify_pair(power, tracks):
     return out, stats
 
 
-def save_figures(power, x, y, runs, classes):
-    """runs: list of (row label, tracks, filter info or None); one figure row per run, one column per pair.
-    Filter info = (ice masks per scene, removed arrows per pair): the row then shows image 1's detected
-    water in blue and marks the start of every removed arrow with a black x."""
+def save_figures(power, x, y, tracks, classes):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     FIGS.mkdir(exist_ok=True)
     extent = [x[0] / 1e3, x[-1] / 1e3, y[-1] / 1e3, y[0] / 1e3]
-    pairs = list(runs[0][1])
-    fig, axes = plt.subplots(len(runs), len(pairs), figsize=(8 * len(pairs), 8 * len(runs)), squeeze=False)
-    for j, (a, b) in enumerate(pairs):
-        # one colour scale per pair (column), so the rows can be compared directly
-        speeds = [to_velocity(t[(a, b)]["d_row"], t[(a, b)]["d_col"], SPACING, hours_between(a, b))[2] for _, t, _ in runs]
-        allspeed = np.concatenate(speeds)
-        norm = matplotlib.colors.Normalize(*(np.percentile(allspeed, (2, 98)) if len(allspeed) else (0, 1)))
-        for i, (label, tracks, filt) in enumerate(runs):
-            ax, t = axes[i, j], tracks[(a, b)]
-            ax.imshow(to_db(power[a]["hh"][::4, ::4]), cmap="gray", extent=extent,
-                      vmin=np.nanpercentile(to_db(power[a]["hh"][::16, ::16]), 2), vmax=np.nanpercentile(to_db(power[a]["hh"][::16, ::16]), 98))
-            removed_note = ""
-            if filt is not None:
-                masks, removed = filt
-                ice, valid = masks[a]                   # image 1's detected water in blue
-                ax.imshow(np.ma.masked_where(~(valid & ~ice)[::4, ::4], np.ones(ice[::4, ::4].shape)),
-                          cmap=matplotlib.colors.ListedColormap(["#1f6feb"]), vmin=0, vmax=1, alpha=0.45,
-                          extent=extent, interpolation="nearest")
-                r = removed[(a, b)]
-                ax.plot(x[r["col"].astype(int)] / 1e3, y[r["row"].astype(int)] / 1e3, "kx", ms=5, mew=1.2)
-                removed_note = f"\n{len(r['row'])} arrows removed (x)"
-            vx, vy, speed = to_velocity(t["d_row"], t["d_col"], SPACING, hours_between(a, b))
-            q = ax.quiver(x[t["col"].astype(int)] / 1e3, y[t["row"].astype(int)] / 1e3, vx, vy, speed, cmap="plasma",
-                          norm=norm, angles="xy", scale_units="xy", scale=0.02, width=0.003)
-            plt.colorbar(q, ax=ax, label="km/day", shrink=0.6)
-            med = f", median {np.median(speed):.1f} km/day" if len(speed) else ""
-            ax.set_title(f"{label}: {t['source']}\n{start_time(a):%d %b %H:%M} -> {start_time(b):%d %b %H:%M} UTC, "
-                         f"{len(speed)} vectors{med}{removed_note}")
+    # one row per pair: before (image 1) and after (image 2), same zoom, same displacement arrows on both
+    fig, axes = plt.subplots(len(tracks), 2, figsize=(16, 7.5 * len(tracks)), squeeze=False, layout="constrained")
+    summaries = []
+    for row, ((a, b), t) in zip(axes, tracks.items()):
+        # displacement arrows at map scale: from the patch centre in image 1 to the matched centre in image 2
+        x0, y0 = x[t["col"].astype(int)] / 1e3, y[t["row"].astype(int)] / 1e3
+        dx_km, dy_km = t["d_col"] * SPACING / 1e3, -t["d_row"] * SPACING / 1e3    # rows grow southwards
+        dist_km = np.hypot(dx_km, dy_km)
+        _, _, speed = to_velocity(t["d_row"], t["d_col"], SPACING, hours_between(a, b))
+        for ax, name, when in ((row[0], a, "Before"), (row[1], b, "After")):
+            hh = to_db(power[name]["hh"])
+            ax.imshow(hh[::2, ::2], cmap="gray", extent=extent,
+                      vmin=np.nanpercentile(hh[::16, ::16], 2), vmax=np.nanpercentile(hh[::16, ::16], 98))
+            q = ax.quiver(x0, y0, dx_km, dy_km, dist_km, cmap="plasma", angles="xy", scale_units="xy", scale=1,
+                          width=0.0025)
+            ax.set_title(f"{when}: NISAR HH, {start_time(name):%d %b %Y %H:%M} UTC")
+            if len(speed):                          # zoom to the arrows (start and end) with a 20 km margin
+                ax.set_xlim(min(x0.min(), (x0 + dx_km).min()) - 20, max(x0.max(), (x0 + dx_km).max()) + 20)
+                ax.set_ylim(min(y0.min(), (y0 + dy_km).min()) - 20, max(y0.max(), (y0 + dy_km).max()) + 20)
             ax.set_xlabel("x (km, EPSG:3413)"); ax.set_ylabel("y (km)")
-    plt.tight_layout(); plt.savefig(FIGS / "chukchi_ice_motion.png", dpi=70); plt.close()
+        fig.colorbar(q, ax=row, label="displacement (km)", shrink=0.8)
+        med = f", median {np.median(dist_km):.1f} km ({np.median(speed):.1f} km/day)" if len(speed) else ""
+        summaries.append(f"{t['source']}, {hours_between(a, b):.1f} h: {len(speed)} arrows{med}")
+    fig.suptitle("\n".join(summaries) + "\nArrows start at a patch centre on the 'before' image and end where that "
+                 "patch is found on the 'after' image (map scale).", fontsize=12)
+    plt.savefig(FIGS / "chukchi_ice_motion.png", dpi=100); plt.close()
 
     fig, axes = plt.subplots(2, 2, figsize=(13, 12))
     for col, (name, c) in enumerate(classes.items()):
@@ -183,31 +164,19 @@ def store(db, x, y, tracks, classes, stats):
 
 
 def main(use_db: bool):
-    power, x, y, looks = load_everything()
-
-    # 1. ice detection on every scene used in a pair
-    masks = {n: ice_mask(n, power[n], looks) for n in dict.fromkeys(n for a, b, _ in PAIRS for n in (a, b))}
-    for name, (ice, valid) in masks.items():
-        print(f"detection {name[:5]} {start_time(name):%d %b %H:%M}  open water {1 - ice[valid].mean():6.1%} of valid pixels")
-
-    # 2. track on the radar texture, then drop arrows that start in water (image 1) or end in water (image 2)
-    tracks, radar, removed = {}, {}, {}
+    power, x, y = load_everything()
+    tracks = {}
     for a, b, source in PAIRS:
         t = track(texture(power[a]["hh"]), texture(power[b]["hh"]), **TRACK)
         t["source"] = source
-        radar[(a, b)] = t
-        tracks[(a, b)], keep = keep_on_ice(t, masks[a][0], masks[b][0])
-        removed[(a, b)] = {k: (v[~keep] if isinstance(v, np.ndarray) else v) for k, v in t.items()}
-        speeds = [to_velocity(o["d_row"], o["d_col"], SPACING, hours_between(a, b))[2] for o in (t, tracks[(a, b)])]
-        print(f"{source:30s} {hours_between(a, b):5.1f} h  " + "  ".join(
-            f"{label} {len(s):4d} vectors, median {np.median(s) if len(s) else float('nan'):5.2f} km/day"
-            for label, s in zip(("all:", "on ice:"), speeds)))
-    # classification lines up the two radar images with the median drift of all arrows
-    classes, stats = classify_pair(power, radar)
+        tracks[(a, b)] = t
+        _, _, speed = to_velocity(t["d_row"], t["d_col"], SPACING, hours_between(a, b))
+        print(f"{source:30s} {hours_between(a, b):5.1f} h  {len(speed):4d} vectors  median {np.median(speed):5.2f} km/day")
+    classes, stats = classify_pair(power, tracks)
     for name, c in classes.items():
         print(f"{name[:5]} dark class {c['dark']:.1%} at HH < {c['threshold']:.1f} dB; class shares {np.round(c['shares'], 3)}")
     print({k: (round(v, 2) if isinstance(v, float) else v) for k, v in stats.items()})
-    save_figures(power, x, y, [("All arrows", radar, None), ("On ice", tracks, (masks, removed))], classes)
+    save_figures(power, x, y, tracks, classes)
     if use_db:
         print("MongoDB: scenes %d, results %d, ice_motion %d" % store(mongo_store.get_db(), x, y, tracks, classes, stats))
 

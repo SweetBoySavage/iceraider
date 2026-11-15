@@ -6,7 +6,7 @@ import pytest
 from scipy.ndimage import gaussian_filter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.ice_tracking import keep_on_ice, similarity, to_velocity, track
+from scripts.ice_tracking import similarity, to_velocity, track
 
 
 def textured(shape, seed=0):
@@ -33,33 +33,6 @@ def test_patches_with_no_data_are_skipped():
     img = textured((512, 512))
     img[:, :] = np.nan
     assert len(track(img, img)["row"]) == 0
-
-
-def arrows(rows, cols, d_rows, d_cols):
-    t = dict(row=rows, col=cols, d_row=d_rows, d_col=d_cols, similarity=np.ones(len(rows)))
-    t = {k: np.asarray(v, dtype="float64") for k, v in t.items()}
-    t["source"] = "test"                                             # non-array entries are passed through
-    return t
-
-
-def test_keep_on_ice_uses_start_in_image1_and_end_in_image2():
-    ice1, ice2 = np.ones((100, 100), bool), np.ones((100, 100), bool)
-    ice1[10, 10] = False                                             # arrow 0 starts in water
-    ice2[52, 47] = False                                             # arrow 1 ends in water (50+2.4, 50-3.4 -> 52, 47)
-    t = arrows([10, 50, 70, 90], [10, 50, 70, 90], [0, 2.4, 1, 20], [0, -3.4, 1, 0])  # arrow 3 ends off the grid
-    kept, keep = keep_on_ice(t, ice1, ice2)
-    assert keep.tolist() == [False, False, True, False]
-    assert kept["row"].tolist() == [70] and kept["source"] == "test"
-
-
-def test_keep_on_ice_ignores_water_elsewhere():
-    ice1 = np.ones((50, 50), bool)
-    ice2 = ice1.copy()
-    ice2[10, 10] = False                                             # water where the arrow STARTS, but in image 2
-    kept, keep = keep_on_ice(arrows([10], [10], [5], [5]), ice1, ice2)
-    assert keep.tolist() == [True]
-    with pytest.raises(ValueError):
-        keep_on_ice(arrows([1], [1], [0], [0]), ice1, ice2[:10])
 
 
 def test_different_grids_fail_fast():

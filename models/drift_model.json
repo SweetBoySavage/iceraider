@@ -1,0 +1,85 @@
+{
+  "terms": [
+    "previous drift",
+    "wind now",
+    "wind before",
+    "constant"
+  ],
+  "coef_real": [
+    0.271009190215069,
+    1.7469383218068693,
+    -0.5199578290480116,
+    0.8619455825911484
+  ],
+  "coef_imag": [
+    0.002009209274485123,
+    -0.666405999531748,
+    0.23616230059174492,
+    -0.5287246500683435
+  ],
+  "wind_only_terms": [
+    "wind now",
+    "constant"
+  ],
+  "wind_only_real": [
+    1.7587135397722298,
+    1.1196840145119782
+  ],
+  "wind_only_imag": [
+    -0.6351552487037176,
+    -0.8432570975766914
+  ],
+  "fitted_years": [
+    2018,
+    2025
+  ],
+  "units": "velocity km/day, wind m/s, map frame EPSG:3413",
+  "test": {
+    "zero": {
+      "n": 11875,
+      "rmse": 11.985,
+      "mean_obs_speed": 10.49,
+      "speed_bias": -10.49,
+      "median_abs_angle_deg": 0.0
+    },
+    "persistence": {
+      "n": 11875,
+      "rmse": 12.291,
+      "mean_obs_speed": 10.49,
+      "speed_bias": -0.059,
+      "median_abs_angle_deg": 40.22
+    },
+    "wind only": {
+      "n": 11541,
+      "rmse": 5.178,
+      "mean_obs_speed": 10.373,
+      "speed_bias": -0.76,
+      "median_abs_angle_deg": 12.188
+    },
+    "full model": {
+      "n": 11541,
+      "rmse": 4.993,
+      "mean_obs_speed": 10.373,
+      "speed_bias": -0.767,
+      "median_abs_angle_deg": 11.479
+    }
+  },
+  "describe": {
+    "previous drift": {
+      "factor": 0.271,
+      "turn_right_deg": -0.4
+    },
+    "wind now": {
+      "percent_of_wind": 2.16,
+      "turn_right_deg": 20.9
+    },
+    "wind before": {
+      "percent_of_wind": 0.66,
+      "turn_right_deg": -155.6
+    },
+    "constant": {
+      "km_per_day": 1.01,
+      "map_angle_deg": -31.5
+    }
+  }
+}

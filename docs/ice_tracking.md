@@ -14,10 +14,7 @@ flowchart LR
     B --> C["Texture image<br/>HH in dB, high-pass"]
     C --> D["Patch matching<br/>coarse + fine"]
     D --> E["Similarity check<br/>≥ 0.5"]
-    B --> M["Ice / water detection<br/>on each image"]
-    E --> F["Keep arrows that start<br/>and end on ice"]
-    M --> F
-    F --> G["Velocity<br/>km/day"]
+    E --> G["Velocity<br/>km/day"]
 ```
 
 Only NISAR (L-band, HH + VV) is used. The Sentinel-1 scenes that `download_scenes.py` also fetches are
@@ -72,28 +69,15 @@ patch at the found position (0 = unrelated, 1 = identical). Arrows below **0.5**
 (`min_similarity` in `TRACK`, `run_chukchi.py`). Lowering it (e.g. to 0.3) keeps more arrows at the
 cost of more wrong matches: on the 27-28 Oct pair, 0.3 gives 735 arrows and 0.5 gives 176.
 
-## 5. Keep only arrows on ice (`keep_on_ice()`)
+**No open-water filter.** An earlier version also removed arrows that started or ended on a pixel
+detected as open water (HH more than 3 dB below VV). On this pair (≈ 99 % ice) it removed 5 arrows,
+and all 5 had the same shift as their neighbours: they were good arrows whose start or end happened
+to fall on a narrow lead or a single speckle pixel. A location rule cannot tell those apart from
+real bad matches, and the similarity check already drops most matches over open water (its texture
+changes within a day), so the filter was removed. If bad arrows over open water show up near an ice
+edge, a check of each arrow against its neighbours' drift is the better fix.
 
-The tracking itself runs on the radar texture. Afterwards, an ice / open-water detection is run on
-**each image separately** (`ice_mask()` in `run_chukchi.py`), and an arrow is removed if:
-
-- its **start** (patch centre) is water in the **image 1** ice mask, or
-- its **end** (start + shift, rounded to the nearest pixel) is water in the **image 2** ice mask, or
-  lies outside the grid.
-
-Why: motion "measured" over open water is not ice drift; it comes from waves or wind patterns, and an
-arrow that lands in water most likely matched the wrong thing.
-
-**Water rule:** after a 7 × 7 Lee speckle filter, a pixel is open water where HH is more than 3 dB below
-VV (`water_from_copol_ratio()` in `classify.py`). Calm water reflects VV much more strongly than HH;
-sea ice reflects both about equally. `verify_chukchi.py` checks this rule against AMSR2 ice
-concentration (89-99 % balanced agreement on four NISAR scenes).
-
-The rule looks at one pixel at each end. The masks have isolated single "water" pixels from speckle, so a
-few good arrows can be removed by chance. On the 27-28 Oct pair (≈ 99 % ice) the filter removes 5 of 176
-arrows and changes the median drift by less than 0.1 km/day.
-
-## 6. Convert to velocity (`to_velocity()`)
+## 5. Convert to velocity (`to_velocity()`)
 
 Shift in pixels × 80 m ÷ time between the two images = velocity. Rows grow downwards in the image but
 northwards on the map, so the row direction is flipped. Speed is reported in km/day.
@@ -106,25 +90,28 @@ northwards on the map, so the row direction is flipped. Speed is reported in km/
 | Image 2 | NISAR GCOV, 28 Oct 2026 10:20 UTC (descending) |
 | Gap | 23.3 h |
 | Area | Chukchi Borderland pack ice, ≈ 75.4-77.5° N, 160-170° W |
-| Result | 171 arrows on ice, median 10.6 km/day |
+| Result | 176 arrows, median 10.6 km/day |
 
 ## Output
 
-`figures/chukchi_ice_motion.png`: top, all arrows on the 27 Oct HH image; bottom, the arrows kept on
-ice, with the detected water in blue and removed arrows marked with a black ×. Both panels share one
-colour scale (km/day).
+`figures/chukchi_ice_motion.png`: before and after, side by side at the same zoom. Left: the 27 Oct HH
+image; right: the 28 Oct HH image. The same displacement arrows are drawn on both, at map scale: each
+arrow starts at a patch centre in image 1 and ends at the centre of the matched patch in image 2, so its
+length is the real distance the ice moved in 23.3 h. Compare the ice under an arrow's start on the left
+with the ice under its tip on the right. Colour = displacement in km; the title also gives the median
+speed in km/day.
 
 `figures/chukchi_classes.png`: k-means classes (HH + VV) on the same window in both scenes, with the
 28 Oct scene moved back by the median drift so the same ice is compared.
 
-With MongoDB enabled, the kept arrows are stored in the `ice_motion` collection
+With MongoDB enabled, the arrows are stored in the `ice_motion` collection
 ([`scripts/mongo_store.py`](../scripts/mongo_store.py)).
 
 ## Run it
 
 ```bash
 python scripts/download_scenes.py       # once; needs a NASA Earthdata login in ~/.netrc
-python scripts/run_chukchi.py --no-db   # detection + tracking + figures, without MongoDB
+python scripts/run_chukchi.py --no-db   # tracking + classification + figures, without MongoDB
 python -m pytest tests/test_ice_tracking.py
 ```
 
@@ -135,5 +122,5 @@ python -m pytest tests/test_ice_tracking.py
 - **Ascending vs descending.** The two passes look at the ice from opposite sides, so the texture
   differs; this is one reason only 176 patches pass the 0.5 similarity check.
 - **One shift per patch.** Rotation and deformation inside a 10 km patch are not measured.
-- **The water mask is tested on little open water here.** The scenes are ≈ 99 % ice; the filter has
-  most effect near an ice edge.
+- **Open water is not tested.** The scenes are ≈ 99 % ice, so the tracking has not been checked near an
+  ice edge (see "No open-water filter" above).

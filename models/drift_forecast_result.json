@@ -1,0 +1,86 @@
+{
+  "day 1, 1-day forecast": {
+    "full model": {
+      "n": 64,
+      "rmse": 1.6074719663366213,
+      "mean_obs_speed": 10.69505334936366,
+      "speed_bias": 0.5543409581424903,
+      "median_abs_angle_deg": 6.313032809024243
+    },
+    "wind only": {
+      "n": 64,
+      "rmse": 1.3031409915888663,
+      "mean_obs_speed": 10.69505334936366,
+      "speed_bias": 0.2255376535948569,
+      "median_abs_angle_deg": 5.176126458776768
+    },
+    "persistence": {
+      "n": 64,
+      "rmse": 12.28614420532011,
+      "mean_obs_speed": 10.69505334936366,
+      "speed_bias": -0.8404527328252719,
+      "median_abs_angle_deg": 66.93522033788297
+    }
+  },
+  "day 2, 2-day forecast": {
+    "full model": {
+      "n": 3,
+      "rmse": 2.322672560191658,
+      "mean_obs_speed": 20.894961702006867,
+      "speed_bias": -0.7782450481938253,
+      "median_abs_angle_deg": 6.108866253343775
+    },
+    "wind only": {
+      "n": 3,
+      "rmse": 2.263471954326868,
+      "mean_obs_speed": 20.894961702006867,
+      "speed_bias": -0.9109885402704082,
+      "median_abs_angle_deg": 5.800239965635386
+    },
+    "persistence": {
+      "n": 3,
+      "rmse": 25.14136091228053,
+      "mean_obs_speed": 20.896890080277487,
+      "speed_bias": -14.596932692804637,
+      "median_abs_angle_deg": 124.83580450791199
+    }
+  },
+  "7-day position error vs OSI SAF (median km)": {
+    "full model": [
+      6.5,
+      14.4,
+      12.9,
+      15.2,
+      15.6,
+      16.9,
+      16.8
+    ],
+    "wind only": [
+      6.2,
+      14.4,
+      13.8,
+      15.7,
+      16.8,
+      18.0,
+      17.9
+    ],
+    "persistence": [
+      8.6,
+      20.9,
+      33.3,
+      46.7,
+      60.3,
+      69.3,
+      78.4
+    ]
+  },
+  "7-day distance travelled, OSI SAF (median km)": [
+    5.6,
+    11.4,
+    17.4,
+    20.9,
+    24.4,
+    19.2,
+    13.8
+  ]
+}

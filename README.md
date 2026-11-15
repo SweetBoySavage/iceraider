@@ -9,9 +9,6 @@ whether a ship's route stays clear of the ice **at the moment the ship passes**.
 
 [![The route app: NISAR ice map of 27-31 Oct 2026 drifting with the forecast, a ship route checked against it](https://img.youtube.com/vi/VMjl6FpxkU4/hqdefault.jpg)](https://www.youtube.com/embed/VMjl6FpxkU4)
 
-[<img src="https://img.youtube.com/vi/VMjl6FpxkU4/hqdefault.jpg" width="600" height="300"
-/>](https://www.youtube.com/embed/VMjl6FpxkU4)
-
 
 <sub><i>The app, two days into a voyage from the Chukchi Sea to the Beaufort Sea. White = sea ice and blue = open
 water, both detected by our model in NISAR images; every image drifts with the forecast from the moment it was taken.

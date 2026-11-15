@@ -10,7 +10,7 @@ const BASE_COLOR = { [CLASS.ICE]: [232, 243, 250], [CLASS.WATER]: [15, 76, 117],
 const PARAMS = ["ship_m", "speed_kn", "ice_buffer_m", "coast_margin_m"];
 const KNOT_KMH = 1.852;
 const PLAY_HOURS_PER_SECOND = 6;
-const LAYERS = ["ice", "drift", "route", "iceMargin", "coastMargin", "images", "grid", "names"];      // what the check boxes switch on and off
+const LAYERS = ["ice", "route", "iceMargin", "coastMargin", "images", "grid", "names"];      // what the check boxes switch on and off
 const TILE = 50;                                // moving ice is drawn in tiles of 50 x 50 cells (20 km), warped by the drift at their corners
 const MARGIN_ALPHA = 190 / 255;
 
@@ -59,9 +59,12 @@ const fmtLatLon = (lat, lon) => `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? "N" 
 const fmtParam = { ship_m: (v) => `${v} m`, speed_kn: (v) => `${v} kn`, ice_buffer_m: (v) => `${(v / 1000).toFixed(1)} km`, coast_margin_m: (v) => `${(v / 1000).toFixed(1)} km` };
 const fmtDelay = (h) => h === 0 ? "on time" : h < 48 ? `${h} h` : `${(h / 24).toFixed(h % 24 ? 2 : 0)} days`;
 // The clock counts hours from the scenario's departure time; the ship itself leaves state.delayH hours later.
+// The time bar starts when the ship leaves (minHours): before that there is nothing to follow.
 const timeAt = (hours) => new Date(Date.parse(state.meta.route.departure_utc) + hours * 3600e3);
 const secondsAt = (hours) => timeAt(hours).getTime() / 1000;
-const maxHours = () => state.drift ? state.drift.forecast_days * 24 : (state.result ? state.result.verdict.hours : 0);
+const tripHours = () => state.result ? state.result.verdict.hours : 0;
+const minHours = () => state.delayH;
+const maxHours = () => Math.max(state.drift ? state.drift.forecast_days * 24 : 0, state.delayH + tripHours());
 
 // ---------- loading ----------
 function progress(share, text) { $("loading-bar").style.width = `${Math.round(share * 100)}%`; $("loading-text").textContent = text; }
@@ -117,8 +120,9 @@ async function load() {                         // every scenario is loaded befo
   const start = new URLSearchParams(location.hash.slice(1));       // optional link: #scenario=oct&delay=24&t=96 (hours)
   await useScenario(state.scenarios[start.get("scenario")] ? start.get("scenario") : list[0].id);
   if (start.has("delay") && state.drift) {
-    state.delayH = Math.max(0, Math.min(Number(start.get("delay")) || 0, 288)); $("delay_h").value = state.delayH; $("o-delay_h").textContent = fmtDelay(state.delayH);
+    state.delayH = Math.max(0, Math.min(Number(start.get("delay")) || 0, latestDelay())); $("delay_h").value = state.delayH; $("o-delay_h").textContent = fmtDelay(state.delayH);
     await check();
+    setHours(minHours());
   }
   if (start.has("t")) setHours(Number(start.get("t")) || 0);
   progress(1, "Ready");
@@ -137,10 +141,10 @@ async function useScenario(id) {
   $("scenario").value = id;
   $("scenario-note").textContent = `${state.meta.route.name}. ${state.meta.note}`;
   const d = state.drift;
-  $("show-drift").disabled = !d; $("delay-box").classList.toggle("off", !d);
+  $("delay-box").classList.toggle("off", !d);
   $("drift-note").textContent = d ? `The ice moves with a ${d.forecast_days}-day drift forecast: OSI SAF drift until ${fmtTime(new Date(d.edges_utc[1]))}, then the drift model with ERA5 wind. The ship is checked against the ice where it is when the ship passes; the route colours show that check, at the ship's own time.`
                                   : "No drift forecast for this period: every radar image is shown as it was taken.";
-  state.moving = !!d && state.show.drift;
+  state.moving = !!d;                         // with a drift forecast the ice always moves
   if (d) buildSceneLayers();
   resetValues(); paintAll();
   await check();
@@ -285,10 +289,25 @@ async function check() {
   const result = await getJson(`api/check?${query}`);
   if (id !== state.checkId) return;            // a newer question is already on its way
   state.result = result;
-  $("time").max = maxHours().toFixed(2);
-  state.hours = Math.min(state.hours, maxHours());
-  showVerdict(); showTime(); fitPanel();
+  if (limitDelay()) return check();            // the trip got longer: leave earlier, and ask again for that departure
+  setHours(state.hours);                       // the trip may be shorter or longer now: keep the clock inside the time bar
+  showVerdict(); fitPanel();
   state.dirty = true;
+}
+
+// The latest departure for which the ice forecast still covers the whole trip, in steps of the slider (hours).
+function latestDelay() {
+  const end = state.result ? state.result.forecast_end_h : null, step = Number($("delay_h").step) || 6;
+  return end === null || end === undefined ? 0 : Math.max(0, Math.floor((end - tripHours()) / step) * step);
+}
+
+function limitDelay() {                        // set the range of "Leave later by"; true when the chosen delay had to come down
+  const latest = latestDelay();
+  $("delay_h").max = latest;
+  if (state.delayH <= latest) return false;
+  state.delayH = latest; $("delay_h").value = latest; $("o-delay_h").textContent = fmtDelay(latest);
+  state.hours = minHours();
+  return true;
 }
 
 let checkTimer = null;
@@ -323,7 +342,8 @@ function shipAt(hours) {                        // position, heading and status 
 
 function setHours(hours) {
   if (!state.result) return;
-  state.hours = Math.max(0, Math.min(hours, maxHours()));
+  $("time").min = minHours(); $("time").max = maxHours().toFixed(2);
+  state.hours = Math.max(minHours(), Math.min(hours, maxHours()));
   showTime(); state.dirty = true;
 }
 
@@ -528,11 +548,11 @@ function wire() {
   });
   $("delay_h").addEventListener("input", () => {
     state.delayH = Number($("delay_h").value); $("o-delay_h").textContent = fmtDelay(state.delayH);
-    showTime(); checkSoon(); state.dirty = true;
+    setPlaying(false); setHours(minHours());   // jump to the new departure: the map shows the ice of that moment
+    checkSoon();
   });
   for (const key of LAYERS) $(`show-${key}`).addEventListener("change", () => {
     state.show[key] = $(`show-${key}`).checked;
-    if (key === "drift") { state.moving = !!state.drift && state.show.drift; paintAll(); checkSoon(); }
     if (key === "ice" || key === "iceMargin" || key === "coastMargin") paintAll();
     state.dirty = true;
   });
@@ -542,7 +562,7 @@ function wire() {
   $("time").addEventListener("input", () => { setPlaying(false); setHours(Number($("time").value)); });
   $("back").onclick = () => { setPlaying(false); setHours(state.hours - stepHours()); };
   $("fwd").onclick = () => { setPlaying(false); setHours(state.hours + stepHours()); };
-  $("play").onclick = () => { if (!state.playing && state.hours >= maxHours()) setHours(0); setPlaying(!state.playing); };
+  $("play").onclick = () => { if (!state.playing && state.hours >= maxHours()) setHours(minHours()); setPlaying(!state.playing); };
   window.addEventListener("keydown", (event) => {
     if (!state.result || event.target.tagName === "SELECT" || event.target.tagName === "INPUT" && event.target.id !== "time") return;
     if (event.key === "ArrowLeft") $("back").click();

@@ -8,7 +8,6 @@ Two passes, because ice can move further than one small patch is wide:
   2. fine:   full-resolution patches, image 2 read at the rough shift -> exact shift
 
 Bad matches are dropped with a similarity score (0 = unrelated, 1 = identical) checked after shifting.
-Then keep_on_ice() drops arrows that start in water (ice mask of image 1) or end in water (image 2).
 
 Full description: docs/ice_tracking.md
 """
@@ -86,27 +85,6 @@ def track(img1, img2, patch=128, step=64, coarse=4, min_similarity=0.5):
             for key, value in zip(out, (row + patch // 2, col + patch // 2, total[0], total[1], score)):
                 out[key].append(value)
     return {k: np.array(v, dtype="float64") for k, v in out.items()}
-
-
-def keep_on_ice(tracks: dict, ice1: np.ndarray, ice2: np.ndarray) -> tuple[dict, np.ndarray]:
-    """Drop arrows that start in water (ice mask of image 1) or end in water (ice mask of image 2).
-
-    ice1, ice2: bool arrays on the tracking grid, True = ice (from an ice/water detection run on each
-    image separately). An arrow starts at its patch centre (row, col) and ends at
-    (row + d_row, col + d_col), rounded to the nearest pixel. An end outside the grid counts as water.
-
-    Returns (kept tracks, bool array `keep` over the input arrows).
-    """
-    if ice1.shape != ice2.shape:
-        raise ValueError(f"ice masks must share one grid; got {ice1.shape} and {ice2.shape}")
-    r0, c0 = tracks["row"].astype(int), tracks["col"].astype(int)
-    r1, c1 = np.round(tracks["row"] + tracks["d_row"]).astype(int), np.round(tracks["col"] + tracks["d_col"]).astype(int)
-    h, w = ice2.shape
-    inside = (r1 >= 0) & (r1 < h) & (c1 >= 0) & (c1 < w)
-    keep = ice1[r0, c0] & inside
-    keep[inside] &= ice2[r1[inside], c1[inside]]
-    kept = {k: (v[keep] if isinstance(v, np.ndarray) and v.shape == keep.shape else v) for k, v in tracks.items()}
-    return kept, keep
 
 
 def to_velocity(d_row, d_col, spacing_m: float, hours: float, y_down: bool = True):

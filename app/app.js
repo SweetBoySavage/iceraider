@@ -9,9 +9,10 @@ const BASE_COLOR = { [CLASS.ICE]: [232, 243, 250], [CLASS.WATER]: [15, 76, 117],
 const PARAMS = ["ship_m", "speed_kn", "ice_buffer_m", "coast_margin_m"];
 const KNOT_KMH = 1.852;
 const PLAY_HOURS_PER_SECOND = 6;
+const LAYERS = ["ice", "route", "iceMargin", "coastMargin", "images", "grid"];      // what the check boxes switch on and off
 
 const state = { scenarios: {}, scenarioId: null, meta: null, cls: null, iceSteps: null, landSteps: null, base: null, overlay: null, params: {}, route: [], result: null,
-                hours: 0, playing: false, view: { scale: 1, ox: 0, oy: 0 }, drag: null, dirty: true, checkId: 0 };
+                hours: 0, playing: false, show: Object.fromEntries(LAYERS.map((k) => [k, true])), view: { scale: 1, ox: 0, oy: 0 }, drag: null, dirty: true, checkId: 0 };
 
 // ---------- map projection (EPSG:3413, polar stereographic, true at 70 N, 45 W down) ----------
 const PS = (() => {
@@ -82,9 +83,8 @@ async function load() {                         // every scenario is loaded befo
     const dist = await loadPixels(dir + "distance.png", meta.nx, meta.ny);
     const cls = new Uint8Array(n), iceSteps = new Uint8Array(n), landSteps = new Uint8Array(n);
     for (let i = 0; i < n; i++) { cls[i] = cells[4 * i]; iceSteps[i] = dist[4 * i]; landSteps[i] = dist[4 * i + 1]; }
-    progress(share(0.75), `${item.label}: drawing the map…`);
+    state.scenarios[item.id] = { meta, cls, iceSteps, landSteps };
     await new Promise(requestAnimationFrame);
-    state.scenarios[item.id] = { meta, cls, iceSteps, landSteps, base: paintBase(meta, cls) };
   }
   $("scenario").innerHTML = list.map((item) => `<option value="${item.id}">${item.label}</option>`).join("");
   progress(0.92, "Checking the route…");
@@ -98,33 +98,34 @@ async function useScenario(id) {
   state.overlay = new OffscreenCanvas(state.meta.nx, state.meta.ny);
   setPlaying(false);
   $("scenario").value = id;
-  $("route-name").textContent = state.meta.route.name;
-  $("scenario-note").textContent = state.meta.note;
-  resetValues(); paintOverlay();
+  $("scenario-note").textContent = `${state.meta.route.name}. ${state.meta.note}`;
+  resetValues(); paintBase(); paintOverlay();
   await check();
   resize(); fitRoute();
 }
 
 // ---------- map layers ----------
-function paintBase({ nx, ny }, cls) {
-  const canvas = new OffscreenCanvas(nx, ny), ctx = canvas.getContext("2d");
+function paintBase() {                         // water, land, no image, and sea ice when it is switched on
+  const { nx, ny } = state.meta, { cls } = state, canvas = new OffscreenCanvas(nx, ny), ctx = canvas.getContext("2d");
+  const hidden = state.show.ice ? -1 : CLASS.ICE;
   const image = ctx.createImageData(nx, ny), px = image.data;
   for (let i = 0; i < nx * ny; i++) {
-    const c = BASE_COLOR[cls[i]] || BASE_COLOR[CLASS.NO_DATA];
+    const c = BASE_COLOR[cls[i] === hidden ? CLASS.WATER : cls[i]] || BASE_COLOR[CLASS.NO_DATA];
     px[4 * i] = c[0]; px[4 * i + 1] = c[1]; px[4 * i + 2] = c[2]; px[4 * i + 3] = 255;
   }
   ctx.putImageData(image, 0, 0);
-  return canvas;
+  state.base = canvas; state.dirty = true;
 }
 
 function paintOverlay() {                      // the safety margins around ice and coast, for the current values
   const { nx, ny, png_step_m: step } = state.meta, p = state.params, ctx = state.overlay.getContext("2d");
   const iceMax = (p.ship_m / 2 + p.ice_buffer_m) / step, landMax = (p.ship_m / 2 + p.coast_margin_m) / step;
   const image = ctx.createImageData(nx, ny), px = image.data, { cls, iceSteps, landSteps } = state;
+  const coast = state.show.coastMargin, ice = state.show.iceMargin;
   for (let i = 0; i < nx * ny; i++) {
     if (cls[i] === CLASS.LAND) continue;
-    if (landSteps[i] <= landMax) { px[4 * i] = 255; px[4 * i + 1] = 179; px[4 * i + 2] = 0; px[4 * i + 3] = 210; }
-    else if (cls[i] !== CLASS.ICE && iceSteps[i] <= iceMax) { px[4 * i] = 255; px[4 * i + 1] = 90; px[4 * i + 2] = 60; px[4 * i + 3] = 190; }
+    if (coast && landSteps[i] <= landMax) { px[4 * i] = 255; px[4 * i + 1] = 179; px[4 * i + 2] = 0; px[4 * i + 3] = 210; }
+    else if (ice && cls[i] !== CLASS.ICE && iceSteps[i] <= iceMax) { px[4 * i] = 255; px[4 * i + 1] = 90; px[4 * i + 2] = 60; px[4 * i + 3] = 190; }
   }
   ctx.putImageData(image, 0, 0);
   state.dirty = true;
@@ -140,7 +141,7 @@ async function check() {
   const total = result.verdict.hours;
   $("time").max = total.toFixed(2);
   state.hours = Math.min(state.hours, total);
-  showVerdict(); paintStrip(); showTime();
+  showVerdict(); showTime(); fitPanel();
   state.dirty = true;
 }
 
@@ -149,33 +150,34 @@ function checkSoon() { clearTimeout(checkTimer); checkTimer = setTimeout(() => c
 function showError(error) { $("verdict-state").textContent = "ERROR"; $("verdict-text").textContent = error.message; console.error(error); }
 
 function showVerdict() {
-  const v = state.result.verdict, box = $("verdict");
-  box.className = `card ${v.state}`;
-  $("verdict-state").textContent = { blocked: "NOT SAFE", clear: "SAFE", clear_where_observed: "CLEAR WHERE OBSERVED", no_data: "NO DATA" }[v.state];
-  let text = "";
-  if (v.first_conflict) {
-    const f = v.first_conflict, what = f.kind === "ice" ? "Sea ice inside the safety margin" : "Coast inside the safety margin";
-    text = `${what} at km ${Math.round(f.km)}, ${fmtHours(f.hours)} after departure (${fmtTime(timeAt(f.hours))}).`;
-  } else if (v.state === "clear_where_observed") text = `No ice on the observed part. ${fmtKm(v.km.unverified)} has no radar image and is not verified.`;
-  else if (v.state === "clear") text = "The whole route is observed open water, outside every safety margin.";
-  else text = "No radar image covers this route.";
-  $("verdict-text").textContent = text;
-  $("v-km").textContent = fmtKm(v.total_km); $("v-hours").textContent = fmtHours(v.hours);
-  for (const name of STATUS) $(`v-${name}`).textContent = fmtKm(v.km[name]);
+  const v = state.result.verdict, r = state.result, p = state.params, f = v.first_conflict;
+  $("verdict").className = `card ${v.state}`;
+  $("verdict-state").textContent = { blocked: f && f.kind === "land" ? "NOT SAFE: TOO CLOSE TO THE COAST" : "NOT SAFE: SEA ICE ON THE ROUTE", clear: "SAFE: OPEN WATER ALL THE WAY",
+    clear_where_observed: "NO ICE SEEN, BUT PARTLY UNKNOWN", no_data: "UNKNOWN: NO RADAR IMAGE" }[v.state];
+  const share = (km) => `${Math.round(100 * km / v.total_km)} %`;
+  let text;
+  if (f) {
+    const i = r.km.findIndex((km) => km >= f.km - 1e-6), where = fmtLatLon(...latLonOf(r.col[i], r.row[i]));
+    text = `The ship is stopped by ${f.kind === "ice" ? "sea ice" : "the coast"} after <b>${fmtKm(f.km)}</b> of ${fmtKm(v.total_km)}: `
+      + `${fmtHours(f.hours)} after departure, on ${fmtTime(timeAt(f.hours))}, at ${where}.`;
+  } else if (v.state === "clear_where_observed") text = `No ice or coast inside the margins where radar has looked. But <b>${fmtKm(v.km.unverified)}</b> (${share(v.km.unverified)}) has no radar image, so we cannot call the route safe.`;
+  else if (v.state === "clear") text = "Radar has seen the whole route, and all of it is open water outside every safety margin.";
+  else text = "No radar image covers this route, so nothing can be said about it.";
+  $("verdict-text").innerHTML = text;
+  for (const name of STATUS) $(`v-${name}`).textContent = `${fmtKm(v.km[name])} · ${share(v.km[name])}`;
   $("share").innerHTML = STATUS.map((name, i) => `<i style="width:${100 * v.km[name] / v.total_km}%;background:${STATUS_COLOR[i]}"></i>`).join("");
-  $("jump").hidden = !v.first_conflict;
+  const reach = (margin) => `${((p.ship_m / 2 + margin) / 1000).toFixed(1)} km`;
+  $("verdict-facts").textContent = `Trip: ${fmtKm(v.total_km)}, ${fmtHours(v.hours)} at ${p.speed_kn} knots, leaving ${fmtTime(timeAt(0))}. `
+    + `The ship is stopped when ice is closer than ${reach(p.ice_buffer_m)} or the coast closer than ${reach(p.coast_margin_m)} (half the ship + margin). `
+    + `Ice map: ${state.meta.scenes.length} NISAR radar images.`;
+  $("jump").hidden = !f;
 }
 
-function paintStrip() {                         // status along the route, lined up with the time slider
-  const canvas = $("strip"), r = state.result, width = canvas.width = canvas.clientWidth, ctx = canvas.getContext("2d");
-  const total = r.km[r.km.length - 1];
-  let i = 0;
-  for (let x = 0; x < width; x++) {
-    const km = (x + 0.5) / width * total;
-    while (i < r.km.length - 1 && r.km[i + 1] <= km) i++;
-    ctx.fillStyle = STATUS_COLOR[r.status[i]];
-    ctx.fillRect(x, 0, 1, canvas.height);
-  }
+function fitPanel() {                           // the left panel never scrolls: shrink its font until everything fits
+  const panel = $("panel");
+  let size = Math.min(20, window.innerHeight / 46, panel.clientWidth / 24);
+  panel.style.fontSize = `${size}px`;
+  while (panel.scrollHeight > panel.clientHeight && size > 8) { size -= 0.25; panel.style.fontSize = `${size}px`; }
 }
 
 // ---------- time ----------
@@ -218,14 +220,14 @@ let dpr = 1;
 function resize() {
   dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(canvas.clientWidth * dpr); canvas.height = Math.round(canvas.clientHeight * dpr);
-  if (state.result) paintStrip();
+  fitPanel();
   state.dirty = true;
 }
 
 function fitRoute() {
   const pts = state.route.map(([lat, lon]) => cellOf(lat, lon));
   const cols = pts.map((p) => p[0]), rows = pts.map((p) => p[1]);
-  const w = canvas.clientWidth, h = canvas.clientHeight - 110, pad = 70;          // 110: room for the time bar
+  const w = canvas.clientWidth, h = canvas.clientHeight - $("timeline").offsetHeight - 20, pad = 70;     // room for the time bar
   const spanC = Math.max(...cols) - Math.min(...cols), spanR = Math.max(...rows) - Math.min(...rows);
   const scale = Math.min((w - 2 * pad) / spanC, (h - 2 * pad) / spanR);
   state.view = { scale, ox: w / 2 - scale * (Math.min(...cols) + spanC / 2), oy: h / 2 - scale * (Math.min(...rows) + spanR / 2) };
@@ -233,7 +235,7 @@ function fitRoute() {
 }
 
 function drawGraticule() {
-  ctx.lineWidth = 1; ctx.strokeStyle = "#ffffff1c"; ctx.fillStyle = "#8fa3ba"; ctx.font = "11px system-ui";
+  ctx.lineWidth = 1; ctx.strokeStyle = "#ffffff1c"; ctx.fillStyle = "#a9bbcf"; ctx.font = "14px system-ui";
   const line = (points) => { ctx.beginPath(); points.forEach(([lat, lon], i) => { const [x, y] = toScreen(...cellOf(lat, lon)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); };
   for (let lat = 64; lat <= 80; lat += 2) {
     line(Array.from({ length: 61 }, (_, i) => [lat, -205 + i]));
@@ -247,11 +249,11 @@ function drawGraticule() {
 
 function drawSceneTimes() {
   if (state.view.scale < 0.12) return;
-  ctx.font = "600 11px system-ui"; ctx.textAlign = "center";
+  ctx.font = "600 13px system-ui"; ctx.textAlign = "center";
   for (const scene of state.meta.scenes) {
     if (scene.col === null) continue;
     const [x, y] = toScreen(scene.col, scene.row), text = fmtTime(new Date(scene.time_utc)), w = ctx.measureText(text).width + 12;
-    ctx.fillStyle = "#0a1018b8"; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 10, w, 19, 6); ctx.fill();
+    ctx.fillStyle = "#0a1018b8"; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 12, w, 22, 6); ctx.fill();
     ctx.fillStyle = "#cfe3f5"; ctx.fillText(text, x, y + 4);
   }
   ctx.textAlign = "left";
@@ -281,7 +283,7 @@ function drawRoute() {
     ctx.beginPath(); ctx.arc(x, y, end ? 6.5 : 4.5, 0, 2 * Math.PI);
     ctx.fillStyle = end ? "#4cc2ff" : "#e6eef7"; ctx.fill(); ctx.strokeStyle = "#05080d"; ctx.lineWidth = 1.5; ctx.stroke();
   });
-  ctx.font = "600 12px system-ui"; ctx.fillStyle = "#e6eef7";
+  ctx.font = "600 15px system-ui"; ctx.fillStyle = "#e6eef7";
   const label = (i, text) => { const [x, y] = toScreen(...cellOf(...state.route[i])); ctx.fillText(text, x + 11, y + 4); };
   label(0, "Start"); label(state.route.length - 1, "End");
 }
@@ -308,10 +310,10 @@ function drawShip() {
 function drawScaleBar() {
   const kmPerPx = state.meta.cell_m / 1000 / state.view.scale;
   const km = [1, 2, 5, 10, 20, 50, 100, 200, 500].find((n) => n / kmPerPx >= 70) || 1000, w = km / kmPerPx;
-  const x = 18, y = canvas.clientHeight - 128;
+  const x = 18, y = canvas.clientHeight - $("timeline").offsetHeight - 34;
   ctx.strokeStyle = ctx.fillStyle = "#e6eef7"; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y - 5); ctx.stroke();
-  ctx.font = "12px system-ui"; ctx.fillText(`${km} km`, x + 4, y - 7);
+  ctx.font = "15px system-ui"; ctx.fillText(`${km} km`, x + 4, y - 8);
 }
 
 function draw(now) {
@@ -322,7 +324,10 @@ function draw(now) {
   ctx.imageSmoothingEnabled = scale < 1;
   ctx.drawImage(state.base, 0, 0); ctx.drawImage(state.overlay, 0, 0);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawGraticule(); drawSceneTimes(); drawRoute(); drawConflict(now); drawShip(); drawScaleBar();
+  if (state.show.grid) drawGraticule();
+  if (state.show.images) drawSceneTimes();
+  if (state.show.route) { drawRoute(); drawConflict(now); }
+  drawShip(); drawScaleBar();
 }
 
 function frame(now) {
@@ -350,6 +355,12 @@ function wire() {
     if (key !== "speed_kn") paintOverlay();
     checkSoon();
   });
+  for (const key of LAYERS) $(`show-${key}`).addEventListener("change", () => {
+    state.show[key] = $(`show-${key}`).checked;
+    if (key === "ice") paintBase();
+    if (key === "iceMargin" || key === "coastMargin") paintOverlay();
+    state.dirty = true;
+  });
   $("scenario").addEventListener("change", () => useScenario($("scenario").value).catch(showError));
   $("reset").onclick = () => { resetValues(); paintOverlay(); setHours(0); fitRoute(); checkSoon(); };
   $("jump").onclick = () => { setPlaying(false); setHours(state.result.verdict.first_conflict.hours); };
@@ -358,7 +369,7 @@ function wire() {
   $("fwd").onclick = () => { setPlaying(false); setHours(state.hours + stepHours()); };
   $("play").onclick = () => { if (!state.playing && state.hours >= state.result.verdict.hours) setHours(0); setPlaying(!state.playing); };
   window.addEventListener("keydown", (event) => {
-    if (!state.result || ["INPUT", "SELECT"].includes(event.target.tagName) && event.target.id !== "time") return;
+    if (!state.result || event.target.tagName === "SELECT" || event.target.tagName === "INPUT" && event.target.id !== "time") return;
     if (event.key === "ArrowLeft") $("back").click();
     else if (event.key === "ArrowRight") $("fwd").click();
     else if (event.key === " ") $("play").click();
@@ -376,7 +387,7 @@ function wire() {
   }, { passive: false });
   canvas.addEventListener("pointerdown", (event) => {
     const [sx, sy] = pos(event);
-    const point = state.route.findIndex(([lat, lon]) => { const [x, y] = toScreen(...cellOf(lat, lon)); return Math.hypot(x - sx, y - sy) < 11; });
+    const point = !state.show.route ? -1 : state.route.findIndex(([lat, lon]) => { const [x, y] = toScreen(...cellOf(lat, lon)); return Math.hypot(x - sx, y - sy) < 11; });
     state.drag = point >= 0 ? { point } : { sx, sy, ox: state.view.ox, oy: state.view.oy };
     canvas.setPointerCapture(event.pointerId); canvas.classList.add("dragging");
   });

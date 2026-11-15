@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ice Raider: ship route check</title>
+<title>Ice Raider: can the ship pass?</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,74 +17,79 @@
 
 <aside id="panel">
   <header>
-    <div class="brand">ICE RAIDER</div>
-    <div class="sub">Ship route check on NISAR radar ice maps</div>
+    <h1 class="brand">ICE RAIDER</h1>
+    <p class="tagline">Can a ship cross the Arctic sea ice safely?</p>
+    <p class="about">Our model finds sea ice in NASA NISAR satellite radar images. This map checks a ship route
+      against that ice: where the ship can sail, where ice stops it, and where no image exists.</p>
   </header>
 
   <section class="card">
-    <h2>Scenario</h2>
+    <h2>1 · Choose a period and route</h2>
     <select id="scenario"></select>
-    <div class="sub" id="route-name"></div>
-    <div class="note" id="scenario-note"></div>
+    <p class="note" id="scenario-note"></p>
   </section>
 
   <section id="verdict" class="card">
+    <h2>2 · Verdict for this route</h2>
     <div id="verdict-state">…</div>
-    <div id="verdict-text"></div>
+    <p id="verdict-text"></p>
     <div id="share" class="share"></div>
-    <table>
-      <tr><td>Distance</td><td id="v-km"></td></tr>
-      <tr><td>Travel time</td><td id="v-hours"></td></tr>
-      <tr><td><i class="dot clear"></i>Open water, observed</td><td id="v-clear"></td></tr>
-      <tr><td><i class="dot unverified"></i>No radar image</td><td id="v-unverified"></td></tr>
-      <tr><td><i class="dot ice"></i>Inside ice margin</td><td id="v-ice"></td></tr>
-      <tr><td><i class="dot land"></i>Inside coast margin</td><td id="v-land"></td></tr>
-    </table>
-    <button id="jump" hidden>Go to first conflict</button>
+    <div class="rows">
+      <div><i class="dot clear"></i>Open water, seen by radar<b id="v-clear"></b></div>
+      <div><i class="dot unverified"></i>No radar image: unknown<b id="v-unverified"></b></div>
+      <div><i class="dot ice"></i>Too close to sea ice<b id="v-ice"></b></div>
+      <div><i class="dot land"></i>Too close to the coast<b id="v-land"></b></div>
+    </div>
+    <p class="note" id="verdict-facts"></p>
+    <button id="jump" hidden>Show the first conflict on the map</button>
+
+    <h2 class="sub-head">Show on the map</h2>
+    <div class="grid2 toggles">
+      <label><input type="checkbox" id="show-ice" checked><i class="sw ice-c"></i>Sea ice</label>
+      <label><input type="checkbox" id="show-route" checked><i class="sw route-c"></i>Route</label>
+      <label><input type="checkbox" id="show-iceMargin" checked><i class="sw icezone-c"></i>Ice safety margin</label>
+      <label><input type="checkbox" id="show-coastMargin" checked><i class="sw coastzone-c"></i>Coast safety margin</label>
+      <label><input type="checkbox" id="show-images" checked><i class="sw label-c"></i>Radar image times</label>
+      <label><input type="checkbox" id="show-grid" checked><i class="sw grid-c"></i>Latitude / longitude</label>
+    </div>
+    <div class="key"><span><i class="sw water-c"></i>Open water</span><span><i class="sw land-c"></i>Land</span><span><i class="sw nodata-c"></i>No radar image</span></div>
   </section>
 
   <section class="card">
-    <h2>Ship</h2>
-    <label>Length <output id="o-ship_m"></output>
-      <input type="range" id="ship_m" min="10" max="500" step="10"></label>
-    <label>Speed <output id="o-speed_kn"></output>
-      <input type="range" id="speed_kn" min="1" max="30" step="0.5"></label>
-    <h2>Safety margins</h2>
-    <label>Around ice <output id="o-ice_buffer_m"></output>
-      <input type="range" id="ice_buffer_m" min="0" max="10000" step="100"></label>
-    <label>Around coast <output id="o-coast_margin_m"></output>
-      <input type="range" id="coast_margin_m" min="0" max="10000" step="100"></label>
-    <button id="reset">Reset route and values</button>
-  </section>
-
-  <section class="card legend">
-    <h2>Map</h2>
-    <div><i class="sw ice-c"></i>Sea ice</div>
-    <div><i class="sw water-c"></i>Open water</div>
-    <div><i class="sw nodata-c"></i>No radar image</div>
-    <div><i class="sw land-c"></i>Land</div>
-    <div><i class="sw icezone-c"></i>Ice safety margin</div>
-    <div><i class="sw coastzone-c"></i>Coast safety margin</div>
-    <p class="note">The ice does not move yet: every radar image is shown as it was taken.
-      Drag a route point to change the route. Scroll to zoom, drag to move the map.</p>
+    <h2>3 · Change the ship and the safety margins</h2>
+    <div class="grid2">
+      <label>Ship length <output id="o-ship_m"></output>
+        <input type="range" id="ship_m" min="10" max="500" step="10"></label>
+      <label>Ship speed <output id="o-speed_kn"></output>
+        <input type="range" id="speed_kn" min="1" max="30" step="0.5"></label>
+      <label>Margin around ice <output id="o-ice_buffer_m"></output>
+        <input type="range" id="ice_buffer_m" min="0" max="10000" step="100"></label>
+      <label>Margin around coast <output id="o-coast_margin_m"></output>
+        <input type="range" id="coast_margin_m" min="0" max="10000" step="100"></label>
+    </div>
+    <div class="foot">
+      <p class="note">Drag a route point to steer. Scroll to zoom. The ice does not move yet: each radar image is shown as taken.</p>
+      <button id="reset">Reset</button>
+    </div>
   </section>
 </aside>
 
 <main>
   <canvas id="map"></canvas>
-  <div id="cursor"></div>
+  <div id="cursor">Move the mouse over the map</div>
   <div id="timeline">
     <div class="row">
-      <button id="back" title="Left arrow">◀</button>
-      <button id="play" title="Space">▶ Play</button>
-      <button id="fwd" title="Right arrow">▶</button>
+      <button id="back" title="Left arrow key">◀</button>
+      <button id="play" title="Space bar">▶ Play</button>
+      <button id="fwd" title="Right arrow key">▶</button>
       <label class="step">Step
         <select id="step"><option value="1">1 h</option><option value="3" selected>3 h</option><option value="6">6 h</option><option value="12">12 h</option></select>
       </label>
-      <div id="clock"></div>
-      <div id="shipinfo"></div>
+      <div class="when">
+        <div id="clock"></div>
+        <div id="shipinfo"></div>
+      </div>
     </div>
-    <canvas id="strip" height="10"></canvas>
     <input type="range" id="time" min="0" max="1" step="0.01" value="0">
   </div>
 </main>

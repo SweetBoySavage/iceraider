@@ -1,6 +1,7 @@
 """Start the route interface. One command, then the browser opens:
 
-    python scripts/run_app.py            # options: --port 8000, --no-browser
+    python scripts/run_app.py            # options: --port 8000, --no-browser, --host 0.0.0.0 (show it to other
+                                         # computers on your network; default is this computer only)
 
 Needs only the files in app/ (in git) and numpy + pyproj. The page asks this server whether a route is safe,
 so the rules live in one place: scripts/route_safety.py.
@@ -114,17 +115,18 @@ class Handler(SimpleHTTPRequestHandler):
         pass
 
 
-def make_server(port: int, bundles: dict[str, dict]) -> ThreadingHTTPServer:
+def make_server(port: int, bundles: dict[str, dict], host: str = "127.0.0.1") -> ThreadingHTTPServer:
     handler = type("AppHandler", (Handler,), {"bundles": bundles})
-    return ThreadingHTTPServer(("127.0.0.1", port), partial(handler, directory=str(APP)))
+    return ThreadingHTTPServer((host, port), partial(handler, directory=str(APP)))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--host", default="127.0.0.1", help="0.0.0.0 lets other computers on the network open the page")
     args = parser.parse_args()
-    server = make_server(args.port, load_bundles())
+    server = make_server(args.port, load_bundles(), args.host)
     url = f"http://127.0.0.1:{args.port}/"
     print(f"Route interface: {url}   (stop with Ctrl+C)", flush=True)
     if not args.no_browser:

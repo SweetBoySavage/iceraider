@@ -20,6 +20,7 @@ python scripts/run_app.py              # opens http://127.0.0.1:8000/
 
 - Already have the repo? `git pull`, then `git checkout ship-route-interface`.
 - Port in use? `python scripts/run_app.py --port 8001`.
+- Show it to another computer on the same network: add `--host 0.0.0.0`, then open `http://<your IP>:8000/` there.
 - No browser opens? Go to `http://127.0.0.1:8000/` yourself. Use Chrome, Edge or Firefox.
 - Stop the app with Ctrl+C in the terminal.
 - The ready-made maps are in `app/data/` (in git, about 13 MB), so nothing is computed at start.
@@ -27,10 +28,13 @@ python scripts/run_app.py              # opens http://127.0.0.1:8000/
 
 ## Use it in 30 seconds
 
-1. Pick a **scenario** at the top left.
-2. Read the **verdict** card: safe or not, and where the first conflict is.
-3. Press **Play** or the **arrow keys** to move the ship along the route.
-4. Change **ship length, speed and margins** with the sliders. The verdict updates at once.
+The left side is numbered in the order you use it. It always fits on one screen (the text shrinks, it never scrolls).
+
+1. Pick a **period and route**.
+2. Read the **verdict**: safe or not, where and when the ship is stopped, and how the route splits up.
+   In the same box, the check boxes switch map items on and off.
+3. Change **ship length, speed and margins** with the sliders. The verdict updates at once.
+4. Press **Play** or the **arrow keys** to move the ship along the route.
 5. **Drag a route point** to steer around the ice.
 
 ## What you see
@@ -48,6 +52,7 @@ python scripts/run_app.py              # opens http://127.0.0.1:8000/
 ## Controls
 
 - **Scenario:** switch between the two periods. Each has its own map and route. Both are loaded at the start.
+- **Show on the map:** check boxes for sea ice, route, both safety margins, radar image times and the latitude / longitude grid.
 - **Ship length** (m) and **speed** (knots).
 - **Margin around ice** and **around coast** (default 1,000 m each).
 - **Time:** slider, Play, or the arrow keys (left / right = one step back / forward; step is 1, 3, 6 or 12 h). Space = play.
@@ -57,10 +62,12 @@ python scripts/run_app.py              # opens http://127.0.0.1:8000/
 
 | Verdict | When |
 |---|---|
-| NOT SAFE | Ice or coast comes inside the margin somewhere. The first place and time are shown. |
-| CLEAR WHERE OBSERVED | No conflict, but part of the route has no radar image. |
-| SAFE | The whole route is observed open water outside all margins. |
-| NO DATA | No radar image covers the route. |
+| NOT SAFE: SEA ICE ON THE ROUTE (or: TOO CLOSE TO THE COAST) | Ice or coast comes inside the margin. The box says after how many km, when, and at which position. |
+| NO ICE SEEN, BUT PARTLY UNKNOWN | No conflict, but part of the route has no radar image. |
+| SAFE: OPEN WATER ALL THE WAY | The whole route is observed open water outside all margins. |
+| UNKNOWN: NO RADAR IMAGE | No radar image covers the route. |
+
+The box also shows the km and share of the route per colour, the trip length and time, and the distance at which ice or coast stops the ship.
 
 Rules (all in `scripts/route_safety.py`):
 - The ship is a circle; its diameter is the ship length; its centre is the position.

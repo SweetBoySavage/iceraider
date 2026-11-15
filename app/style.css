@@ -26,14 +26,11 @@ h2 { font-size: .78em; letter-spacing: .12em; text-transform: uppercase; color: 
 #verdict.clear { border-color: var(--clear); } #verdict.clear #verdict-state { color: var(--clear); }
 #verdict.clear_where_observed { border-color: var(--land); } #verdict.clear_where_observed #verdict-state { color: var(--land); }
 #verdict.no_data #verdict-state { color: var(--unverified); }
-#verdict-text { margin: .3em 0 .6em; }
-.share { display: flex; height: .6em; border-radius: .3em; overflow: hidden; background: var(--line); margin-bottom: .45em; }
+.share { display: flex; height: .6em; border-radius: .3em; overflow: hidden; background: var(--line); margin: .5em 0 .45em; }
 .share i { display: block; height: 100%; }
 .rows div { display: flex; align-items: center; padding: .08em 0; }
-.rows b { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
 .dot { display: inline-block; width: .7em; height: .7em; border-radius: 50%; margin-right: .55em; flex: none; }
 .clear { background: var(--clear); } .unverified { background: var(--unverified); } .ice { background: var(--ice); } .land { background: var(--land); }
-#verdict-facts { margin-top: .5em; }
 #jump { width: 100%; margin-top: .6em; }
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .45em 1.2em; }
@@ -72,7 +69,7 @@ main { position: relative; flex: 1; min-width: 0; }
 #timeline select { font-size: 17px; padding: 9px 10px; }
 .when { margin-left: auto; text-align: right; min-width: 0; }
 #clock { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
-#shipinfo { color: var(--dim); font-size: 15px; }
+#shipinfo { color: var(--dim); font-size: 16px; }
 #time { height: 22px; }
 
 #loading { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: flex; align-items: center; justify-content: center; }

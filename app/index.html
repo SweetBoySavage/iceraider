@@ -22,8 +22,8 @@
   <header>
     <h1 class="brand">ICE RAIDER</h1>
     <p class="tagline">Can a ship cross the Arctic sea ice safely?</p>
-    <p class="about">Our model finds sea ice in NASA NISAR satellite radar images. This map checks a ship route
-      against that ice: where the ship can sail, where ice stops it, and where no image exists.</p>
+    <p class="about">Sea ice detection model based on NASA NISAR satellite radar data. Shows whether a ship can
+      traverse its route safely or will encounter ice.</p>
   </header>
 
   <section class="card">
@@ -35,15 +35,13 @@
   <section id="verdict" class="card">
     <h2>2 · Verdict for this route</h2>
     <div id="verdict-state">…</div>
-    <p id="verdict-text"></p>
     <div id="share" class="share"></div>
     <div class="rows">
-      <div><i class="dot clear"></i>Open water, seen by radar<b id="v-clear"></b></div>
-      <div><i class="dot unverified"></i>No radar image: unknown<b id="v-unverified"></b></div>
-      <div><i class="dot ice"></i>Too close to sea ice<b id="v-ice"></b></div>
-      <div><i class="dot land"></i>Too close to the coast<b id="v-land"></b></div>
+      <div><i class="dot clear"></i>Open water, seen by radar</div>
+      <div><i class="dot unverified"></i>No radar image: unknown</div>
+      <div><i class="dot ice"></i>Too close to sea ice</div>
+      <div><i class="dot land"></i>Too close to the coast</div>
     </div>
-    <p class="note" id="verdict-facts"></p>
     <button id="jump" hidden>Show the first conflict on the map</button>
 
     <h2 class="sub-head">Show on the map</h2>
@@ -71,7 +69,7 @@
         <input type="range" id="coast_margin_m" min="0" max="10000" step="100"></label>
     </div>
     <div class="foot">
-      <p class="note">Drag a route point to steer. Scroll to zoom. The ice does not move yet: each radar image is shown as taken.</p>
+      <p class="note">Drag a route point to steer. Scroll to zoom.</p>
       <button id="reset">Reset</button>
     </div>
   </section>

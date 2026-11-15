@@ -148,35 +148,20 @@ async function check() {
 
 let checkTimer = null;
 function checkSoon() { clearTimeout(checkTimer); checkTimer = setTimeout(() => check().catch(showError), 120); }
-function showError(error) { $("verdict-state").textContent = "ERROR"; $("verdict-text").textContent = error.message; console.error(error); }
+function showError(error) { $("verdict-state").textContent = `ERROR: ${error.message}`; console.error(error); }
 
 function showVerdict() {
-  const v = state.result.verdict, r = state.result, p = state.params, f = v.first_conflict;
+  const v = state.result.verdict, f = v.first_conflict;
   $("verdict").className = `card ${v.state}`;
   $("verdict-state").textContent = { blocked: f && f.kind === "land" ? "NOT SAFE: TOO CLOSE TO THE COAST" : "NOT SAFE: SEA ICE ON THE ROUTE", clear: "SAFE: OPEN WATER ALL THE WAY",
     clear_where_observed: "NO ICE SEEN, BUT PARTLY UNKNOWN", no_data: "UNKNOWN: NO RADAR IMAGE" }[v.state];
-  const share = (km) => `${Math.round(100 * km / v.total_km)} %`;
-  let text;
-  if (f) {
-    const i = r.km.findIndex((km) => km >= f.km - 1e-6), where = fmtLatLon(...latLonOf(r.col[i], r.row[i]));
-    text = `The ship is stopped by ${f.kind === "ice" ? "sea ice" : "the coast"} after <b>${fmtKm(f.km)}</b> of ${fmtKm(v.total_km)}: `
-      + `${fmtHours(f.hours)} after departure, on ${fmtTime(timeAt(f.hours))}, at ${where}.`;
-  } else if (v.state === "clear_where_observed") text = `No ice or coast inside the margins where radar has looked. But <b>${fmtKm(v.km.unverified)}</b> (${share(v.km.unverified)}) has no radar image, so we cannot call the route safe.`;
-  else if (v.state === "clear") text = "Radar has seen the whole route, and all of it is open water outside every safety margin.";
-  else text = "No radar image covers this route, so nothing can be said about it.";
-  $("verdict-text").innerHTML = text;
-  for (const name of STATUS) $(`v-${name}`).textContent = `${fmtKm(v.km[name])} · ${share(v.km[name])}`;
   $("share").innerHTML = STATUS.map((name, i) => `<i style="width:${100 * v.km[name] / v.total_km}%;background:${STATUS_COLOR[i]}"></i>`).join("");
-  const reach = (margin) => `${((p.ship_m / 2 + margin) / 1000).toFixed(1)} km`;
-  $("verdict-facts").textContent = `Trip: ${fmtKm(v.total_km)}, ${fmtHours(v.hours)} at ${p.speed_kn} knots, leaving ${fmtTime(timeAt(0))}. `
-    + `The ship is stopped when ice is closer than ${reach(p.ice_buffer_m)} or the coast closer than ${reach(p.coast_margin_m)} (half the ship + margin). `
-    + `Ice map: ${state.meta.scenes.length} NISAR radar images.`;
   $("jump").hidden = !f;
 }
 
 function fitPanel() {                           // the left panel never scrolls: shrink its font until everything fits
   const panel = $("panel");
-  let size = Math.min(20, window.innerHeight / 46, panel.clientWidth / 24);
+  let size = Math.min(24, window.innerHeight / 38, panel.clientWidth / 22);
   panel.style.fontSize = `${size}px`;
   while (panel.scrollHeight > panel.clientHeight && size > 8) { size -= 0.25; panel.style.fontSize = `${size}px`; }
 }
@@ -197,19 +182,11 @@ function setHours(hours) {
   showTime(); state.dirty = true;
 }
 
-function showTime() {
+function showTime() {                           // the clock of the time bar: date and time at the ship, and how far it is
   const r = state.result; if (!r) return;
-  const ship = shipAt(state.hours), scene = state.meta.scenes[ship.scene];
   $("time").value = state.hours;
-  $("clock").textContent = `T + ${state.hours.toFixed(1)} h  ·  ${fmtTime(timeAt(state.hours))}`;
-  const where = ["open water, observed", "no radar image here", "inside the ice margin", "inside the coast margin"][ship.status];
-  $("shipinfo").innerHTML = `km ${Math.round(ship.km)} of ${Math.round(r.verdict.total_km)} · <b style="color:${STATUS_COLOR[ship.status]}">${where}</b>`
-    + (scene ? ` · radar image of ${fmtTime(new Date(scene.time_utc))} (${imageAge(scene)})` : "");
-}
-
-function imageAge(scene) {                      // how old the radar image is when the ship is there
-  const hours = (timeAt(state.hours) - Date.parse(scene.time_utc)) / 3600e3;
-  return hours >= 0 ? `${fmtHours(hours)} old` : `taken ${fmtHours(-hours)} later`;
+  $("clock").textContent = fmtTime(timeAt(state.hours));
+  $("shipinfo").textContent = `${fmtHours(state.hours)} after departure · ${fmtKm(shipAt(state.hours).km)} of ${fmtKm(r.verdict.total_km)}`;
 }
 
 function setPlaying(on) { state.playing = on; state.lastFrame = null; $("play").textContent = on ? "❚❚ Pause" : "▶ Play"; state.dirty = true; }
@@ -235,25 +212,34 @@ function fitRoute() {
   state.dirty = true;
 }
 
-function drawGraticule() {
+function drawGraticule() {                      // each line gets one label, where it is lowest (longitude) or rightmost (latitude) on screen
   ctx.lineWidth = 1; ctx.strokeStyle = "#ffffff1c"; ctx.fillStyle = "#a9bbcf"; ctx.font = "14px system-ui";
-  const line = (points) => { ctx.beginPath(); points.forEach(([lat, lon], i) => { const [x, y] = toScreen(...cellOf(lat, lon)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); };
-  for (let lat = 64; lat <= 80; lat += 2) {
-    line(Array.from({ length: 61 }, (_, i) => [lat, -205 + i]));
-    for (const lon of [-140.5, -170.5]) { const [x, y] = toScreen(...cellOf(lat, lon)); ctx.fillText(`${lat}° N`, x + 4, y - 3); }
-  }
-  for (let lon = -200; lon <= -140; lon += 10) {
-    line([[62, lon], [82, lon]]);
-    for (const lat of [68.1, 74.1]) { const [x, y] = toScreen(...cellOf(lat, lon)); ctx.fillText(lon < -180 ? `${360 + lon}° E` : `${-lon}° W`, x + 4, y - 3); }
-  }
+  const right = canvas.clientWidth - 70, bottom = canvas.clientHeight - $("timeline").offsetHeight - 28;
+  const line = (points, text, pick) => {
+    let best = null;
+    ctx.beginPath();
+    points.forEach(([lat, lon], i) => {
+      const [x, y] = toScreen(...cellOf(lat, lon));
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      if (x > 20 && x < right && y > 70 && y < bottom && (!best || pick(x, y) > pick(best[0], best[1]))) best = [x, y];
+    });
+    ctx.stroke();
+    if (best) ctx.fillText(text, best[0] + 5, best[1] - 4);
+  };
+  for (let lat = 64; lat <= 80; lat += 2) line(Array.from({ length: 121 }, (_, i) => [lat, -205 + i * 0.5]), `${lat}° N`, (x) => x);
+  for (let lon = -200; lon <= -140; lon += 10) line(Array.from({ length: 81 }, (_, i) => [62 + i * 0.25, lon]), lon < -180 ? `${360 + lon}° E` : `${-lon}° W`, (x, y) => y);
 }
 
-function drawSceneTimes() {
+function drawSceneTimes() {                     // date and time of each NISAR image; labels that would overlap move down
   if (state.view.scale < 0.12) return;
   ctx.font = "600 13px system-ui"; ctx.textAlign = "center";
+  const placed = [];
   for (const scene of state.meta.scenes) {
     if (scene.col === null) continue;
-    const [x, y] = toScreen(scene.col, scene.row), text = fmtTime(new Date(scene.time_utc)), w = ctx.measureText(text).width + 12;
+    const text = fmtTime(new Date(scene.time_utc)).replace(" UTC", ""), w = ctx.measureText(text).width + 12;
+    let [x, y] = toScreen(scene.col, scene.row);
+    while (placed.some((p) => Math.abs(p.x - x) < (p.w + w) / 2 + 4 && Math.abs(p.y - y) < 24)) y += 25;
+    placed.push({ x, y, w });
     ctx.fillStyle = "#0a1018b8"; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 12, w, 22, 6); ctx.fill();
     ctx.fillStyle = "#cfe3f5"; ctx.fillText(text, x, y + 4);
   }

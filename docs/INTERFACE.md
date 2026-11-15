@@ -31,7 +31,7 @@ python scripts/run_app.py              # opens http://127.0.0.1:8000/
 The left side is numbered in the order you use it. It always fits on one screen (the text shrinks, it never scrolls).
 
 1. Pick a **period and route**.
-2. Read the **verdict**: safe or not, where and when the ship is stopped, and how the route splits up.
+2. Read the **verdict**: safe or not, and how the route splits up. A button jumps to the first conflict.
    In the same box, the check boxes switch map items on and off.
 3. Change **ship length, speed and margins** with the sliders. The verdict updates at once.
 4. Press **Play** or the **arrow keys** to move the ship along the route.
@@ -67,7 +67,8 @@ The left side is numbered in the order you use it. It always fits on one screen 
 | SAFE: OPEN WATER ALL THE WAY | The whole route is observed open water outside all margins. |
 | UNKNOWN: NO RADAR IMAGE | No radar image covers the route. |
 
-The box also shows the km and share of the route per colour, the trip length and time, and the distance at which ice or coast stops the ship.
+The box shows only the verdict, a bar with the share of the route per colour, and a button that jumps to the first conflict.
+The time bar shows the date and time at the ship, the hours since departure and the distance sailed.
 
 Rules (all in `scripts/route_safety.py`):
 - The ship is a circle; its diameter is the ship length; its centre is the position.
@@ -88,7 +89,6 @@ Rules (all in `scripts/route_safety.py`):
 - Where two scenes overlap, the newest is shown.
 - Cells of 400 m. A cell is ice when at least 25 % of it is ice.
 - September: the model was trained on these images, so its ice map looks better there than on new images.
-- The time bar shows how old the radar image under the ship is.
 
 ## What is in this version, and what is not
 
@@ -103,7 +103,6 @@ Rules (all in `scripts/route_safety.py`):
 | Time slider, play, arrow keys | To follow the ship along the route |
 | Draggable route points | Little work, and lets you steer around ice |
 | "No radar image" as its own state | We do not call water safe that we never saw |
-| Age of the radar image under the ship | Old images are less trustworthy: ice drifts about 10 km per day |
 | Maps committed to git | The app must start anywhere with one command |
 
 **Not added**

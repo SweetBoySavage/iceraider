@@ -59,9 +59,10 @@ The left side is numbered in the order you use it. It always fits on one screen 
 - **Ship length** (m) and **speed** (knots).
 - **Margin around ice** and **around coast** (default 1,000 m each).
 - **Time:** slider, Play, or the arrow keys (left / right = one step back / forward; step is 1, 3, 6 or 12 h). Space = play.
-  With a drift forecast (October) the clock runs 12 days from the scenario's departure; the ship waits at the start
-  until its own departure and at the end after it arrives.
-- **Leave later by** (October): 0 - 12 days, in steps of 6 h. The verdict is for that departure.
+  With a drift forecast (October) the time bar runs from the ship's departure to the end of the 12-day forecast
+  (or to the arrival, when that is later); after it arrives the ship waits at the end.
+- **Leave later by** (October): 0 - 12 days, in steps of 6 h. The verdict is for that departure. The map jumps to
+  that departure, so the ice is shown where the forecast puts it on that day, and the time bar starts there.
 - **Ice moves (forecast)** (October): off = every image as taken, as before (for comparison).
 - **Link to a moment:** `http://127.0.0.1:8000/#scenario=oct&delay=24&t=96` opens the page at clock hour 96 with a
   1-day later departure.

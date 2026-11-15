@@ -59,9 +59,12 @@ const fmtLatLon = (lat, lon) => `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? "N" 
 const fmtParam = { ship_m: (v) => `${v} m`, speed_kn: (v) => `${v} kn`, ice_buffer_m: (v) => `${(v / 1000).toFixed(1)} km`, coast_margin_m: (v) => `${(v / 1000).toFixed(1)} km` };
 const fmtDelay = (h) => h === 0 ? "on time" : h < 48 ? `${h} h` : `${(h / 24).toFixed(h % 24 ? 2 : 0)} days`;
 // The clock counts hours from the scenario's departure time; the ship itself leaves state.delayH hours later.
+// The time bar starts when the ship leaves (minHours): before that there is nothing to follow.
 const timeAt = (hours) => new Date(Date.parse(state.meta.route.departure_utc) + hours * 3600e3);
 const secondsAt = (hours) => timeAt(hours).getTime() / 1000;
-const maxHours = () => state.drift ? state.drift.forecast_days * 24 : (state.result ? state.result.verdict.hours : 0);
+const tripHours = () => state.result ? state.result.verdict.hours : 0;
+const minHours = () => state.delayH;
+const maxHours = () => Math.max(state.drift ? state.drift.forecast_days * 24 : 0, state.delayH + tripHours());
 
 // ---------- loading ----------
 function progress(share, text) { $("loading-bar").style.width = `${Math.round(share * 100)}%`; $("loading-text").textContent = text; }
@@ -119,6 +122,7 @@ async function load() {                         // every scenario is loaded befo
   if (start.has("delay") && state.drift) {
     state.delayH = Math.max(0, Math.min(Number(start.get("delay")) || 0, 288)); $("delay_h").value = state.delayH; $("o-delay_h").textContent = fmtDelay(state.delayH);
     await check();
+    setHours(minHours());
   }
   if (start.has("t")) setHours(Number(start.get("t")) || 0);
   progress(1, "Ready");
@@ -285,9 +289,8 @@ async function check() {
   const result = await getJson(`api/check?${query}`);
   if (id !== state.checkId) return;            // a newer question is already on its way
   state.result = result;
-  $("time").max = maxHours().toFixed(2);
-  state.hours = Math.min(state.hours, maxHours());
-  showVerdict(); showTime(); fitPanel();
+  setHours(state.hours);                       // the trip may be shorter or longer now: keep the clock inside the time bar
+  showVerdict(); fitPanel();
   state.dirty = true;
 }
 
@@ -323,7 +326,8 @@ function shipAt(hours) {                        // position, heading and status 
 
 function setHours(hours) {
   if (!state.result) return;
-  state.hours = Math.max(0, Math.min(hours, maxHours()));
+  $("time").min = minHours(); $("time").max = maxHours().toFixed(2);
+  state.hours = Math.max(minHours(), Math.min(hours, maxHours()));
   showTime(); state.dirty = true;
 }
 
@@ -528,7 +532,8 @@ function wire() {
   });
   $("delay_h").addEventListener("input", () => {
     state.delayH = Number($("delay_h").value); $("o-delay_h").textContent = fmtDelay(state.delayH);
-    showTime(); checkSoon(); state.dirty = true;
+    setPlaying(false); setHours(minHours());   // jump to the new departure: the map shows the ice of that moment
+    checkSoon();
   });
   for (const key of LAYERS) $(`show-${key}`).addEventListener("change", () => {
     state.show[key] = $(`show-${key}`).checked;
@@ -542,7 +547,7 @@ function wire() {
   $("time").addEventListener("input", () => { setPlaying(false); setHours(Number($("time").value)); });
   $("back").onclick = () => { setPlaying(false); setHours(state.hours - stepHours()); };
   $("fwd").onclick = () => { setPlaying(false); setHours(state.hours + stepHours()); };
-  $("play").onclick = () => { if (!state.playing && state.hours >= maxHours()) setHours(0); setPlaying(!state.playing); };
+  $("play").onclick = () => { if (!state.playing && state.hours >= maxHours()) setHours(minHours()); setPlaying(!state.playing); };
   window.addEventListener("keydown", (event) => {
     if (!state.result || event.target.tagName === "SELECT" || event.target.tagName === "INPUT" && event.target.id !== "time") return;
     if (event.key === "ArrowLeft") $("back").click();

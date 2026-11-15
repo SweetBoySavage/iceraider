@@ -35,7 +35,7 @@ The left side is numbered in the order you use it. It always fits on one screen 
    In the same box, the check boxes switch map items on and off.
 3. Change **ship length, speed and margins** with the sliders. The verdict updates at once.
 4. Press **Play** or the **arrow keys** to move the ship along the route. In October the ice moves too (12-day
-   drift forecast); **Leave later by** (0 - 12 days) checks the same route against the ice of a later day.
+   drift forecast); **Leave later by** checks the same route against the ice of a later day.
 5. **Drag a route point** to steer around the ice.
 
 ## What you see
@@ -61,9 +61,9 @@ The left side is numbered in the order you use it. It always fits on one screen 
 - **Time:** slider, Play, or the arrow keys (left / right = one step back / forward; step is 1, 3, 6 or 12 h). Space = play.
   With a drift forecast (October) the time bar runs from the ship's departure to the end of the 12-day forecast
   (or to the arrival, when that is later); after it arrives the ship waits at the end.
-- **Leave later by** (October): 0 - 12 days, in steps of 6 h. The verdict is for that departure. The map jumps to
+- **Leave later by** (October): from 0 up to the latest departure for which the 12-day ice forecast still covers the
+  whole trip, in steps of 6 h. A longer route or a slower ship lowers that maximum. The verdict is for that departure. The map jumps to
   that departure, so the ice is shown where the forecast puts it on that day, and the time bar starts there.
-- **Ice moves (forecast)** (October): off = every image as taken, as before (for comparison).
 - **Link to a moment:** `http://127.0.0.1:8000/#scenario=oct&delay=24&t=96` opens the page at clock hour 96 with a
   1-day later departure.
 - **Route:** drag a route point. Scroll = zoom, drag the map = move.
@@ -120,7 +120,7 @@ Rules (all in `scripts/route_safety.py`):
 | Draggable route points | Little work, and lets you steer around ice |
 | "No radar image" as its own state | We do not call water safe that we never saw |
 | Moving ice, 12-day drift forecast (October) | The prediction is built (`docs/drift_forecast.md`); the check uses it |
-| "Leave later by" slider | Check the same route against the forecast ice of any of the next 12 days |
+| "Leave later by" slider | Check the same route against the forecast ice of a later day, as long as the forecast covers the whole trip |
 | Maps committed to git | The app must start anywhere with one command |
 
 **Not added**

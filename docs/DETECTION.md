@@ -50,15 +50,25 @@ Status: **finished and frozen on 14 Nov 2026.** Do not tune the model on the tes
 4. **Thin new ice** (3 Oct) can look like water.
 5. **Only tested in one region and one season** (autumn freeze-up, Pacific side of the Arctic).
 6. **Land is not learned, it is masked.** Training and test scenes contain no land. Without a mask the model
-   calls land "ice" (97.5 % of land pixels in a check scene near Utqiagvik, 27 Oct). So land is removed with a
-   coastline mask before the model answers (see "Land" below). Waters close to the coast are not validated.
+   calls land "ice" (97.5 % of land pixels in a check scene near Utqiagvik, 27 Oct). So land is painted over the
+   model's answer with a coastline mask (see "Land" below). Waters close to the coast are not validated.
 
 ## Land
 
 - Land comes from the **GSHHG full-resolution coastline** (third party, see `DATA_SOURCES.md`), not from the model.
-- A **1 km safety margin** is added around all land. Lakes count as land.
-- `classify_scene` returns a map with sea ice, open water, land and no-data.
+- **Land is applied after the prediction.** The model first answers on the untouched radar data, exactly as in
+  training. Then land and the coast margin are painted over it. The model input never changes.
+- A **safety margin** is added around all land (default 1 km). Lakes count as land.
+- **Land and margin are separate classes:** `LAND` is real land, `COAST_MARGIN` is the strip of sea next to it.
+  Land just outside the image still casts its margin into it.
+- Set the margin with `LAND_MARGIN_M` (metres) in `.env` or as an environment variable; see `.env.example`.
+  A negative or non-number value stops the run. Below 400 m you get a warning: the model looks at a 720 m
+  window, so answers that close to the coast are computed from pixels that contain land.
+- `classify_scene` returns a map with sea ice, open water, land, coast margin and no-data.
 - Check on a real coastal scene: `figures/land_mask_check.png`. The coastline lines up with the radar image.
+- Same scene (Utqiagvik, 27 Oct) as a full map: `figures/map_20261027T074517.png`. Land is 6.4 % of the
+  scene; the margin adds 0.6 % at 1000 m and 2.5 % at 5000 m.
+- Not included: water depth. A shallow-water limit for shipping would need a depth chart.
 - First mask of a session takes about 30 s (reading the coastline); it is slow for an app unless cached per scene.
 
 One-time download of the coastline (119 MB zip, 96 MB file, not stored in git):
@@ -108,11 +118,28 @@ water, usable = predict_scene(load_model(), load_gcov("data/<scene>.h5"))   # wa
 With land (recommended for anything shown to users):
 
 ```python
-from scripts.evaluate_detection import LAND, OPEN_WATER, SEA_ICE, classify_scene, load_model
+from scripts.evaluate_detection import COAST_MARGIN, LAND, OPEN_WATER, SEA_ICE, classify_scene, load_model
 from scripts.nisar_loader import load_gcov
 
-classes = classify_scene(load_model(), load_gcov("data/<scene>.h5"))        # 0 sea ice, 1 open water, 2 land, 255 no data
+classes = classify_scene(load_model(), load_gcov("data/<scene>.h5"))        # 0 sea ice, 1 open water, 2 land, 3 coast margin, 255 no data
 ```
+
+Compute a scene once and save it (about a minute). Writes the map to `data/maps/<scene name>.npz` and a
+picture to `figures/map_<start time>.png`:
+
+```
+.venv/bin/python scripts/evaluate_detection.py map <scene name>
+```
+
+An interface then loads the saved map in well under a second, with nothing computed again:
+
+```python
+from scripts.evaluate_detection import load_map
+
+m = load_map("<scene name>")     # m["classes"], m["x"], m["y"], m["epsg"], m["margin_m"]
+```
+
+The margin is baked into a saved map. After changing `LAND_MARGIN_M`, run the `map` command again.
 
 ## Files
 
@@ -123,6 +150,6 @@ classes = classify_scene(load_model(), load_gcov("data/<scene>.h5"))        # 0 
 | `scripts/select_dataset.py` | Chooses the training and test scenes |
 | `scripts/detection.py` | Features and labelled pixel tables |
 | `scripts/train_detection.py` | Compares models on training data, freezes one |
-| `scripts/evaluate_detection.py` | Runs the frozen model on the test set |
+| `scripts/evaluate_detection.py` | Runs the frozen model on the test set; three-class map of any scene (`map`) |
 | `scripts/classify.py` | Lee filter, the simple HH minus VV rule |
 | `scripts/land_mask.py` | Land mask from the GSHHG coastline, with a safety margin |

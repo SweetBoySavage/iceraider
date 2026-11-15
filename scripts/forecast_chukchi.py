@@ -219,7 +219,7 @@ def main():
     OUT_JSON.parent.mkdir(exist_ok=True)
     OUT_JSON.write_text(json.dumps(result, indent=2))
     figure_short(day1, day2, short["full model"], result)
-    figure_check(day1, day2, short, result)
+    figure_check(day0, day1, day2, short, result)
     figure_week(day0, pos, osi, week)
 
 
@@ -270,7 +270,7 @@ def figure_short(day1, day2, steps, result):
     plt.savefig(FIGS / "chukchi_drift_forecast.png", dpi=100); plt.close()
 
 
-def figure_check(day1, day2, short, result):
+def figure_check(day0, day1, day2, short, result):
     """Forecast vs NISAR, piece by piece: for every forecast arrow with a NISAR arrow starting within MATCH_KM,
     the start, the forecast end, the NISAR end and the persistence end; red line = forecast error."""
     import matplotlib
@@ -278,7 +278,7 @@ def figure_check(day1, day2, short, result):
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
 
-    fig, axes = plt.subplots(1, 2, figsize=(17, 9), layout="constrained")
+    fig, axes = plt.subplots(1, 2, figsize=(17, 10), layout="constrained")
     for ax, k, truth, label in ((axes[0], 0, day1, "Day 1"), (axes[1], 1, day2, "Day 2")):
         model, pers = short["full model"][k], short["persistence"][k]
         idx = match(model["x"], model["y"], truth)
@@ -316,9 +316,15 @@ def figure_check(day1, day2, short, result):
                             Line2D([], [], color="#d62728", lw=2, label="forecast error"),
                             Line2D([], [], color=PERS_DARK, lw=1.5, ls="--", marker="o", ms=3, label="persistence (same as the day before)")],
                    loc="lower left", framealpha=0.9)
-    fig.suptitle("Drift forecast checked against NISAR, piece of ice by piece of ice. Forecast from the 27 -> 28 Oct NISAR "
-                 "drift + ERA5 wind; NISAR arrows from tracking the next passes. Lines = displacement at map scale.",
-                 fontsize=11)
+    fig.suptitle(
+        "Drift forecast checked against NISAR, piece of ice by piece of ice (lines = displacement at map scale)\n"
+        f"Day 0 (input, measured by NISAR): {day0['t0']:%d %b %H:%M} -> {day0['t1']:%d %b %H:%M} UTC ({day0['hours']:.1f} h), HH radar "
+        f"texture, 128 px (~10 km) patches matched with similarity >= {TRACK['min_similarity']} -> {len(day0['x'])} arrows.\n"
+        f"Forecast start: each piece of ice at the END of its day-0 arrow ({day0['t1']:%d %b %H:%M}); V0 = day-0 displacement / "
+        f"{day0['hours']:.1f} h (km/day); W0 = ERA5 wind over the same {day0['hours']:.1f} h.\n"
+        "Day 1: V1 = a*V0 + b*W1 + c*W0 + d (W1 = ERA5 wind of day 1). Day 2 starts at the PREDICTED day-1 end: "
+        "V2 = a*V1 + b*W2 + c*W1 + d. Truth: NISAR tracking of the next passes, same method.",
+        fontsize=10.5)
     plt.savefig(FIGS / "chukchi_drift_forecast_check.png", dpi=100); plt.close()
 
 

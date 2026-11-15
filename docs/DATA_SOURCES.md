@@ -3,7 +3,8 @@
 Short answer:
 - **The ice / open-water model uses NISAR only.** Sentinel-1 is not an input to it.
 - **Sentinel-1 is used only for ice movement** and as a second radar view.
-- **Two third-party (non-NASA) sources are used:** the Uni Bremen ice map (labels) and the IABP buoys (drift check).
+- **Three third-party (non-NASA) sources are used:** the Uni Bremen ice map (labels), the IABP buoys (drift check)
+  and the GSHHG coastline (land mask).
 
 ## Which data is used in which step
 
@@ -17,6 +18,7 @@ Short answer:
 | Ice movement, cross-sensor | yes | **yes** (26, 27 Oct) | none | `run_chukchi.py`, `s1_geocode.py` |
 | Check of ice movement | yes | no | IABP buoys (third party), one-off check, no script in repo | - |
 | Early brightness classes (k-means), before the model | yes | yes (27 Oct) | none | `run_chukchi.py` |
+| **Land mask** on output maps | no | no | GSHHG coastline (third party) | `land_mask.py`, `evaluate_detection.classify_scene` |
 | Overview and verification maps | yes | no | Uni Bremen AMSR2; NASA NISE_A2 (printed, not used for scores) | `verify_chukchi.py` |
 
 ## All sources
@@ -44,6 +46,7 @@ Sentinel-1 is not NASA data. The usual credit line is: *"Contains modified Coper
 |---|---|---|---|
 | **AMSR2 ASI sea ice concentration**, 3.125 km, v5.4 | University of Bremen, Institute of Environmental Physics. Sensor: AMSR2 on GCOM-W (JAXA) | **The only source of labels** for training and testing. Also used to pick scenes and draw maps | open, `data.seaice.uni-bremen.de` |
 | **IABP drifting buoy positions** | International Arctic Buoy Programme, hosted by the University of Washington (APL) | One comparison with our NISAR ice drift (27 - 28 Oct) | open, `iabp.apl.uw.edu` |
+| **GSHHG 2.3.7 coastline**, full resolution (`gshhs_f.b`) | Wessel and Smith; distributed by the University of Hawaii (SOEST) and NOAA. Licence: LGPL | Land mask applied to the model output. Not used for training or scoring | open, `soest.hawaii.edu/pwessel/gshhg` |
 
 Before presenting, look up the exact citation each provider asks for (Bremen, IABP, NASA DAACs).
 

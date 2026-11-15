@@ -15,7 +15,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from scripts import detection, mongo_store, reference                    # noqa: E402
+from scripts import detection, land_mask, mongo_store, reference         # noqa: E402
 from scripts.nisar_loader import load_gcov                               # noqa: E402
 from scripts.train_detection import ICE, WATER, load_table, scores       # noqa: E402
 
@@ -38,6 +38,19 @@ def predict_scene(frozen, scene):
     water = np.zeros(usable.shape, bool)
     water[usable] = frozen["model"].predict(X) == WATER
     return water, usable
+
+
+SEA_ICE, OPEN_WATER, LAND, NO_DATA = 0, 1, 2, 255
+
+
+def classify_scene(frozen, scene, margin_m: float = land_mask.MARGIN_M) -> np.ndarray:
+    """Map of SEA_ICE / OPEN_WATER / LAND / NO_DATA (uint8). Land comes from the coastline, never from the model."""
+    water, usable = predict_scene(frozen, scene)
+    out = np.full(usable.shape, NO_DATA, "uint8")
+    out[usable] = np.where(water[usable], OPEN_WATER, SEA_ICE)
+    land = land_mask.land_mask(scene.x, scene.y, scene.epsg, margin_m)
+    out[land & np.isfinite(scene.power["hh"])] = LAND
+    return out
 
 
 def figure(frozen, scenes):

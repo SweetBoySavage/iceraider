@@ -7,10 +7,16 @@ Data: GSHHG 2.3.7 "A Global Self-consistent, Hierarchical, High-resolution Geogr
 Lakes count as land here: they are not sea, and the model is not meant for them.
 A safety margin is added around the coast, because pixels there mix land and sea and the coastline itself
 can be off by a few hundred metres in the Arctic.
+
+The margin is set with LAND_MARGIN_M (metres) as an environment variable or in the .env file in the repo root
+(see .env.example). Without it the margin is 1000 m.
 """
 from __future__ import annotations
 
+import math
+import os
 import struct
+import warnings
 import zipfile
 from functools import lru_cache
 from pathlib import Path
@@ -23,9 +29,32 @@ ROOT = Path(__file__).resolve().parents[1]
 COAST_DIR = ROOT / "data" / "reference" / "coast"
 GSHHG_FILE = COAST_DIR / "gshhs_f.b"
 GSHHG_URL = "https://www.soest.hawaii.edu/pwessel/gshhg/gshhg-bin-2.3.7.zip"
-MARGIN_M = 1000.0            # pixels closer than this to land are also masked
+MARGIN_M = 1000.0            # default: pixels closer than this to land are also masked
+MARGIN_ENV = "LAND_MARGIN_M"
+MIN_SAFE_MARGIN_M = 400.0    # the model looks at a 720 m window: closer to land than half of it, land leaks into the features
 LEVEL_LAND = 1               # GSHHG levels: 1 land, 2 lake, 3 island in lake, 4 pond, 5-6 Antarctica
 HEADER = struct.Struct(">11i")   # id, n points, flag, west, east, south, north, area, area_full, container, ancestor
+
+
+def margin_from_env(env_file: Path = ROOT / ".env") -> float:
+    """Safety margin in metres: environment variable LAND_MARGIN_M, else the .env file, else MARGIN_M."""
+    raw = os.environ.get(MARGIN_ENV)
+    if raw is None and env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.strip().startswith(MARGIN_ENV + "="):
+                raw = line.split("=", 1)[1].split("#")[0].strip().strip("'\"")
+    if raw is None or not raw.strip():
+        return MARGIN_M
+    try:
+        margin = float(raw)
+    except ValueError:
+        raise ValueError(f"{MARGIN_ENV} must be a number of metres, got {raw!r}") from None
+    if not math.isfinite(margin) or margin < 0:
+        raise ValueError(f"{MARGIN_ENV} must be zero or more metres, got {raw!r}")
+    if margin < MIN_SAFE_MARGIN_M:
+        warnings.warn(f"{MARGIN_ENV}={margin:g} m is below {MIN_SAFE_MARGIN_M:g} m: ice / water answers next to the coast "
+                      "are computed from pixels that contain land", stacklevel=2)
+    return margin
 
 
 def download(path: Path = GSHHG_FILE) -> Path:
@@ -90,8 +119,13 @@ def add_margin(land: np.ndarray, spacing_m: float, margin_m: float = MARGIN_M) -
     return distance_transform_edt(~land) * spacing_m <= margin_m
 
 
-def land_mask(x: np.ndarray, y: np.ndarray, epsg: int, margin_m: float = MARGIN_M, path: Path = GSHHG_FILE) -> np.ndarray:
-    """Boolean grid (len(y), len(x)): True = land or within the safety margin of land."""
+def land_mask(x: np.ndarray, y: np.ndarray, epsg: int, margin_m: float | None = None, path: Path = GSHHG_FILE) -> np.ndarray:
+    """Boolean grid (len(y), len(x)): True = land or within the safety margin of land.
+
+    `margin_m=None` takes the margin from LAND_MARGIN_M (see `margin_from_env`).
+    """
+    if margin_m is None:
+        margin_m = margin_from_env()
     if not Path(path).exists():
         raise FileNotFoundError(f"{path} is missing. Run: python -c 'from scripts.land_mask import download; download()'")
     polygons, bounds = _arctic_land(str(path), epsg)

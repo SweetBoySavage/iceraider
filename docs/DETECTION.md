@@ -50,15 +50,23 @@ Status: **finished and frozen on 14 Nov 2026.** Do not tune the model on the tes
 4. **Thin new ice** (3 Oct) can look like water.
 5. **Only tested in one region and one season** (autumn freeze-up, Pacific side of the Arctic).
 6. **Land is not learned, it is masked.** Training and test scenes contain no land. Without a mask the model
-   calls land "ice" (97.5 % of land pixels in a check scene near Utqiagvik, 27 Oct). So land is removed with a
-   coastline mask before the model answers (see "Land" below). Waters close to the coast are not validated.
+   calls land "ice" (97.5 % of land pixels in a check scene near Utqiagvik, 27 Oct). So land is painted over the
+   model's answer with a coastline mask (see "Land" below). Waters close to the coast are not validated.
 
 ## Land
 
 - Land comes from the **GSHHG full-resolution coastline** (third party, see `DATA_SOURCES.md`), not from the model.
-- A **1 km safety margin** is added around all land. Lakes count as land.
+- **Land is applied after the prediction.** The model first answers on the untouched radar data, exactly as in
+  training. Then every land pixel is overwritten with "land". The model input never changes.
+- A **safety margin** is added around all land (default 1 km). Lakes count as land.
+- Set the margin with `LAND_MARGIN_M` (metres) in `.env` or as an environment variable; see `.env.example`.
+  A negative or non-number value stops the run. Below 400 m you get a warning: the model looks at a 720 m
+  window, so answers that close to the coast are computed from pixels that contain land.
 - `classify_scene` returns a map with sea ice, open water, land and no-data.
 - Check on a real coastal scene: `figures/land_mask_check.png`. The coastline lines up with the radar image.
+- Same scene (Utqiagvik, 27 Oct) as a full map: `figures/map_20261027T074517.png`. Land share of the scene by
+  margin: 6.4 % at 0 m, 7.0 % at 1000 m, 8.9 % at 5000 m.
+- Not included: water depth. A shallow-water limit for shipping would need a depth chart.
 - First mask of a session takes about 30 s (reading the coastline); it is slow for an app unless cached per scene.
 
 One-time download of the coastline (119 MB zip, 96 MB file, not stored in git):
@@ -114,6 +122,12 @@ from scripts.nisar_loader import load_gcov
 classes = classify_scene(load_model(), load_gcov("data/<scene>.h5"))        # 0 sea ice, 1 open water, 2 land, 255 no data
 ```
 
+Or as a picture (radar image next to the map, written to `figures/map_<start time>.png`):
+
+```
+.venv/bin/python scripts/evaluate_detection.py map <scene name>
+```
+
 ## Files
 
 | File | What it does |
@@ -123,6 +137,6 @@ classes = classify_scene(load_model(), load_gcov("data/<scene>.h5"))        # 0 
 | `scripts/select_dataset.py` | Chooses the training and test scenes |
 | `scripts/detection.py` | Features and labelled pixel tables |
 | `scripts/train_detection.py` | Compares models on training data, freezes one |
-| `scripts/evaluate_detection.py` | Runs the frozen model on the test set |
+| `scripts/evaluate_detection.py` | Runs the frozen model on the test set; three-class map of any scene (`map`) |
 | `scripts/classify.py` | Lee filter, the simple HH minus VV rule |
 | `scripts/land_mask.py` | Land mask from the GSHHG coastline, with a safety margin |

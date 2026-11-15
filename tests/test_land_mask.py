@@ -55,3 +55,46 @@ def test_land_mask_places_an_island_correctly_across_the_180_degree_line(tmp_pat
 def test_missing_coast_file_fails_fast(tmp_path):
     with pytest.raises(FileNotFoundError):
         land_mask(np.arange(3.0), np.arange(3.0, 0, -1), 3413, path=tmp_path / "none.b")
+
+
+def test_margin_comes_from_environment_then_env_file_then_default(tmp_path, monkeypatch):
+    from scripts.land_mask import MARGIN_ENV, MARGIN_M, margin_from_env
+    monkeypatch.delenv(MARGIN_ENV, raising=False)
+    env = tmp_path / ".env"
+    assert margin_from_env(env) == MARGIN_M                       # no file, no variable
+    env.write_text("MONGODB_URI=secret\nLAND_MARGIN_M=2500   # metres\n")
+    assert margin_from_env(env) == 2500.0
+    monkeypatch.setenv(MARGIN_ENV, "5000")
+    assert margin_from_env(env) == 5000.0                         # the environment variable wins
+    monkeypatch.setenv(MARGIN_ENV, "")
+    assert margin_from_env(tmp_path / "none") == MARGIN_M         # empty counts as not set
+
+
+@pytest.mark.parametrize("bad", ["-1", "wide", "nan", "inf"])
+def test_bad_margin_fails_fast(bad, tmp_path, monkeypatch):
+    from scripts.land_mask import MARGIN_ENV, margin_from_env
+    monkeypatch.setenv(MARGIN_ENV, bad)
+    with pytest.raises(ValueError, match=MARGIN_ENV):
+        margin_from_env(tmp_path / "none")
+
+
+def test_small_margin_warns(tmp_path, monkeypatch):
+    from scripts.land_mask import MARGIN_ENV, margin_from_env
+    monkeypatch.setenv(MARGIN_ENV, "100")
+    with pytest.warns(UserWarning, match="contain land"):
+        assert margin_from_env(tmp_path / "none") == 100.0
+
+
+def test_land_mask_uses_the_margin_from_the_environment(tmp_path, monkeypatch):
+    from pyproj import Transformer
+    from scripts.land_mask import MARGIN_ENV
+    f = tmp_path / "g.b"
+    f.write_bytes(polygon_bytes(square(-160.0, 71.0, 0.2), 1, 72))
+    cx, cy = Transformer.from_crs(4326, 3413, always_xy=True).transform(-159.9, 71.1)
+    x, y = np.arange(cx - 30_000, cx + 30_000, 400.0), np.arange(cy + 30_000, cy - 30_000, -400.0)
+    monkeypatch.setenv(MARGIN_ENV, "1000")
+    narrow = land_mask(x, y, 3413, path=f)
+    monkeypatch.setenv(MARGIN_ENV, "5000")
+    wide = land_mask(x, y, 3413, path=f)
+    assert (narrow == land_mask(x, y, 3413, margin_m=1000, path=f)).all()
+    assert wide.sum() > narrow.sum() and wide[narrow].all()       # a wider margin only adds land

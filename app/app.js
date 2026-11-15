@@ -10,7 +10,7 @@ const BASE_COLOR = { [CLASS.ICE]: [232, 243, 250], [CLASS.WATER]: [15, 76, 117],
 const PARAMS = ["ship_m", "speed_kn", "ice_buffer_m", "coast_margin_m"];
 const KNOT_KMH = 1.852;
 const PLAY_HOURS_PER_SECOND = 6;
-const LAYERS = ["ice", "route", "iceMargin", "coastMargin", "images", "grid", "names", "globe"];      // what the check boxes switch on and off
+const LAYERS = ["ice", "route", "iceMargin", "coastMargin", "images", "grid", "names"];      // what the check boxes switch on and off
 
 const state = { scenarios: {}, scenarioId: null, meta: null, cls: null, iceSteps: null, landSteps: null, base: null, overlay: null, params: {}, route: [], result: null,
                 hours: 0, playing: false, show: Object.fromEntries(LAYERS.map((k) => [k, true])), view: { scale: 1, ox: 0, oy: 0, rot: 0 }, world: [], land: [], drag: null, dirty: true, checkId: 0 };
@@ -246,34 +246,6 @@ function drawPlaces() {
   ctx.textAlign = "left";
 }
 
-function drawGlobe() {                          // where on Earth the map is: a small globe with the map view marked
-  const R = 92, cx = canvas.clientWidth - R - 22, cy = 70 + R, lat0 = 58 * Math.PI / 180, lon0 = state.midLon * Math.PI / 180;
-  const sin0 = Math.sin(lat0), cos0 = Math.cos(lat0);
-  const spot = (lat, lon) => {                  // orthographic view; points on the far side are moved to the rim
-    const p = lat * Math.PI / 180, d = lon * Math.PI / 180 - lon0, cp = Math.cos(p), sp = Math.sin(p), cd = Math.cos(d);
-    let x = cp * Math.sin(d), y = cos0 * sp - sin0 * cp * cd;
-    if (sin0 * sp + cos0 * cp * cd < 0) { const n = Math.hypot(x, y) || 1; x /= n; y /= n; }
-    return [cx + R * x, cy - R * y];
-  };
-  ctx.beginPath(); ctx.arc(cx, cy, R + 5, 0, 2 * Math.PI); ctx.fillStyle = "#0a1018dd"; ctx.fill();
-  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.fillStyle = "#123a5a"; ctx.fill(); ctx.clip();
-  ctx.fillStyle = "#5d6673"; ctx.beginPath();
-  for (const poly of state.world) {
-    for (let i = 0; i < poly.length; i += 2) { const [x, y] = spot(poly[i + 1], poly[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-    ctx.closePath();
-  }
-  ctx.fill();
-  const w = canvas.clientWidth, h = canvas.clientHeight, corners = [[0, 0], [w, 0], [w, h], [0, h]].map(([sx, sy]) => spot(...latLonOf(...toCell(sx, sy))));
-  ctx.beginPath(); corners.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
-  ctx.fillStyle = "#ff4d4d55"; ctx.fill(); ctx.strokeStyle = "#ff4d4d"; ctx.lineWidth = 2; ctx.stroke();
-  ctx.fillStyle = "#e6eef7"; ctx.font = "600 11px system-ui"; ctx.textAlign = "center";
-  for (const [name, lat, lon] of [["North America", 50, -110], ["Asia", 58, 125], ["Pacific Ocean", 30, -165], ["North Pole", 90, 0]]) { const [x, y] = spot(lat, lon); ctx.fillText(name, x, y); }
-  ctx.restore();
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.strokeStyle = "#4cc2ff"; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.fillStyle = "#e6eef7"; ctx.font = "600 13px system-ui"; ctx.fillText("Red = this map", cx, cy + R + 22);
-  ctx.textAlign = "left";
-}
-
 function drawGraticule() {                      // each line gets one label, where it is lowest (longitude) or rightmost (latitude) on screen
   ctx.lineWidth = 1; ctx.strokeStyle = "#ffffff1c"; ctx.fillStyle = "#a9bbcf"; ctx.font = "14px system-ui";
   const right = canvas.clientWidth - 70, bottom = canvas.clientHeight - $("timeline").offsetHeight - 28;
@@ -380,7 +352,6 @@ function draw(now) {
   if (state.show.images) drawSceneTimes();
   if (state.show.route) { drawRoute(); drawConflict(now); }
   drawShip(); drawScaleBar();
-  if (state.show.globe) drawGlobe();
 }
 
 function frame(now) {

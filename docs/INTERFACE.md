@@ -48,13 +48,12 @@ The left side is numbered in the order you use it. It always fits on one screen 
 | Route colour | Green = observed open water, grey dashes = no radar image, red = inside ice margin, yellow = inside coast margin |
 | Dashed ring around the ship | The ice clearance, to scale |
 | Labels on the map | Date and time (UTC) of the radar image used there |
-| Small globe, top right | Where on Earth the map lies: the red patch is the part of the map you see |
 | Grey land and place names | The wider area (Alaska, Russia, the seas), from a coarse world outline |
 
 ## Controls
 
 - **Scenario:** switch between the two periods. Each has its own map and route. Both are loaded at the start.
-- **Show on the map:** check boxes for sea ice, route, both safety margins, NISAR image dates, the latitude / longitude grid, place names and the world locator.
+- **Show on the map:** check boxes for sea ice, route, both safety margins, NISAR image dates, the latitude / longitude grid and place names.
 - **Ship length** (m) and **speed** (knots).
 - **Margin around ice** and **around coast** (default 1,000 m each).
 - **Time:** slider, Play, or the arrow keys (left / right = one step back / forward; step is 1, 3, 6 or 12 h). Space = play.

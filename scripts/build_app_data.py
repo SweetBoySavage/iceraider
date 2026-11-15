@@ -11,7 +11,7 @@ without the radar data):
 - meta.json     grid, image times, default values, the route of the scenario
 
 Also writes app/data/world.json: a coarse outline of the land of the world (from the GSHHG coastline, LGPL), so the
-page can show where on Earth the map lies.
+page can draw the land around the radar map.
 """
 from __future__ import annotations
 

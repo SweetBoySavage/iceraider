@@ -36,6 +36,13 @@ SCENES = [
 ]
 # NISAR pair across the ice edge (about half open water, half ice, no land), 72 N 172 W.
 # Used to test ice-vs-water classification against the reference maps.
+# The next two descending NISAR passes over the tracked Chukchi ice (54 % and 56 % overlap with the
+# 27/28 Oct pair). Tracking 28 -> 29 and 29 -> 30 Oct gives the observed drift that the drift forecast
+# (scripts/forecast_chukchi.py) is checked against.
+FORECAST_SCENES = [
+    "NISAR_L2_PR_GCOV_034_075_D_047_0505_SHSV_A_20261029T093943_20261029T094015_P05036_N_F_J_001",
+    "NISAR_L2_PR_GCOV_034_090_D_046_0505_SVSH_A_20261030T103725_20261030T103801_P05036_N_F_J_001",
+]
 EDGE_SCENES = [
     "NISAR_L2_PR_GCOV_034_049_A_039_0505_SVSH_A_20261027T141811_20261027T141848_P05036_N_F_J_001",
     "NISAR_L2_PR_GCOV_034_060_D_051_0505_SVSH_A_20261028T084333_20261028T084410_P05036_N_F_J_001",
@@ -69,7 +76,7 @@ def dataset_scenes() -> list[str]:
 
 
 def main(dry_run: bool, with_dataset: bool = False) -> None:
-    wanted = SCENES + EDGE_SCENES + (dataset_scenes() if with_dataset else [])
+    wanted = SCENES + FORECAST_SCENES + EDGE_SCENES + (dataset_scenes() if with_dataset else [])
     products = find(list(dict.fromkeys(wanted)))
     total = sum(size_bytes(p) for p in products)
     for p in products:

@@ -5,7 +5,7 @@
 We detect sea ice in **NASA NISAR** radar images, predict how that ice drifts over the next **12 days**, and check
 whether a ship's route stays clear of the ice **at the moment the ship passes**.
 
-**Demo video: [ADD LINK]**
+**Demo video:**
 
 ![The route app: NISAR ice map of 27-31 Oct 2026 drifting with the forecast, a ship route checked against it](IceRaiders_SpaceApps_final.mp4)
 <sub><i>The app, two days into a voyage from the Chukchi Sea to the Beaufort Sea. White = sea ice and blue = open

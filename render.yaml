@@ -1,0 +1,10 @@
+# Render (render.com) hosting for the route interface. Render reads this file when you make a new "Blueprint".
+# Python version comes from .python-version. Render sets $PORT itself.
+services:
+  - type: web
+    name: iceraider
+    runtime: python
+    plan: free
+    buildCommand: pip install numpy==2.5.3 pyproj==3.8.0
+    startCommand: python scripts/run_app.py --host 0.0.0.0 --port $PORT --no-browser
+    healthCheckPath: /

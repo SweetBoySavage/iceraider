@@ -152,7 +152,14 @@ def test_server_serves_the_page_and_answers_the_check():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_address[1]}"
     try:
-        assert b"ICE RAIDER" in urllib.request.urlopen(f"{base}/").read()
+        page = urllib.request.urlopen(f"{base}/")
+        html = page.read()
+        assert b"ICE RAIDER" in html and b"not for real navigation" in html
+        assert page.headers["Cache-Control"] == "no-cache"
+        again = urllib.request.Request(f"{base}/", headers={"If-Modified-Since": page.headers["Last-Modified"]})
+        with pytest.raises(urllib.error.HTTPError) as unchanged:           # an unchanged file is not sent twice
+            urllib.request.urlopen(again)
+        assert unchanged.value.code == 304
         assert json.load(urllib.request.urlopen(f"{base}/api/check?{QUERY}"))["verdict"]["state"] == "blocked"
         with pytest.raises(urllib.error.HTTPError) as error:
             urllib.request.urlopen(f"{base}/api/check?{QUERY.replace('ship_m=100', 'ship_m=0')}")

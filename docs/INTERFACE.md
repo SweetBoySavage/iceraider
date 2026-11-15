@@ -25,6 +25,12 @@ python scripts/run_app.py              # opens http://127.0.0.1:8000/
 - The ready-made maps are in `app/data/` (in git, about 13 MB), so nothing is computed at start.
 - The page shows a loading bar and unlocks when everything is loaded.
 
+## Put it on a public website (Render)
+
+The file `render.yaml` holds the whole setup. On [render.com](https://render.com): **New → Blueprint**, pick this
+repository, **Apply**. Every merge into `main` then updates the site. The free plan sleeps after 15 minutes without
+visitors, so the first visit after that takes up to a minute.
+
 ## Use it in 30 seconds
 
 The left side is numbered in the order you use it. It always fits on one screen (the text shrinks, it never scrolls).

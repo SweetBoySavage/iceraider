@@ -138,7 +138,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def end_headers(self):
-        self.send_header("Cache-Control", "no-store")          # a presentation must never show an old map
+        self.send_header("Cache-Control", "no-cache")          # the browser may keep a file but must ask if it changed:
+                                                               # never an old map, and no 14 MB download on every visit
         super().end_headers()
 
     def log_message(self, *args):

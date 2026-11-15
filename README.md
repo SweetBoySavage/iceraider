@@ -68,7 +68,8 @@ Details: [`docs/drift_forecast.md`](docs/drift_forecast.md).
 The NISAR ice maps of 27-31 Oct 2026 are stitched into one map. Every image drifts with the forecast from the moment
 it was taken, so the map shows where the ice is at any time in the next 12 days. The ship's route is checked point by
 point at the ship's own time, against the ice where it has drifted by then; the page draws the ice with the same
-formula the check uses. A **"Leave later by"** slider checks the same route on any of the next 12 days.
+formula the check uses. A **"Leave later by"** slider checks the same route on a later day, up to the latest
+departure for which the forecast still covers the whole trip.
 
 ![Leaving 4 days later: ice has drifted onto the start of the route](figures/app_leave_later.png)
 
@@ -85,8 +86,8 @@ pip install numpy pyproj
 python scripts/run_app.py          # opens http://127.0.0.1:8000/
 ```
 
-Then press **Play**, move **"Leave later by"**, drag a route point to steer around the ice, or switch
-**"Ice moves (forecast)"** off to compare with the static map. A link can open a given moment, e.g.
+Then press **Play**, move **"Leave later by"**, or drag a route point to steer around the ice. A link can open a
+given moment, e.g.
 `http://127.0.0.1:8000/#scenario=oct&delay=24&t=96` (one day later departure, clock at hour 96).
 More: [`docs/INTERFACE.md`](docs/INTERFACE.md).
 

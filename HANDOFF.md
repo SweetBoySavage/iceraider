@@ -32,8 +32,11 @@ First building blocks for trajectory:
 - Checked on a coastal scene (Utqiagvik, 27 Oct): without the mask the model calls 97.5 % of land "ice"; with it, land is
   shown as land and the coastline lines up with the radar image (`figures/land_mask_check.png`).
 - 15 Nov: land is applied **after** the prediction (model input untouched). Margin around the coast is set with
-  `LAND_MARGIN_M` in `.env` (default 1000 m, template in `.env.example`). Map of any scene:
-  `python scripts/evaluate_detection.py map <scene name>`. Example: `figures/map_20261027T074517.png`.
+  `LAND_MARGIN_M` in `.env` (default 1000 m, template in `.env.example`). The margin is its own class
+  (`COAST_MARGIN = 3`), separate from real land (`LAND = 2`).
+- For the interface: `python scripts/evaluate_detection.py map <scene name>` computes a scene once and saves it to
+  `data/maps/`; `load_map(name)` reads it back in 0.04 s. Example picture: `figures/map_20261027T074517.png`.
+- Idea, not started: a safety margin around ice for ship routes. Belongs with the route / interface work.
 - Idea, not started: also use sea depth for the shipping route.
 - First mask takes about 30 s. For the app: compute once per scene and cache it.
 - Not validated: ice / water quality close to the coast.
@@ -62,7 +65,7 @@ First building blocks for trajectory:
 | Reference data and drawbacks | `docs/REFERENCE_DATA.md` |
 | Which data is used where, third parties | `docs/DATA_SOURCES.md` |
 | Why we chose this data | `docs/DATA_CHOICES.md` |
-| Code | `scripts/` (61 tests in `tests/`, run `.venv/bin/python -m pytest -q tests`) |
+| Code | `scripts/` (63 tests in `tests/`, run `.venv/bin/python -m pytest -q tests`) |
 | Tracking run | `scripts/run_chukchi.py` (writes MongoDB + `figures/chukchi_*.png`) |
 | Raw data (not in git) | `data/`, about 13.5 GB. ICESat-2 files and the unused 28 Oct Sentinel-1 scene were deleted on 14 Nov; the scripts fetch ICESat-2 again if a table is rebuilt |
 

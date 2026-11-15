@@ -119,18 +119,33 @@ def add_margin(land: np.ndarray, spacing_m: float, margin_m: float = MARGIN_M) -
     return distance_transform_edt(~land) * spacing_m <= margin_m
 
 
-def land_mask(x: np.ndarray, y: np.ndarray, epsg: int, margin_m: float | None = None, path: Path = GSHHG_FILE) -> np.ndarray:
-    """Boolean grid (len(y), len(x)): True = land or within the safety margin of land.
+def land_and_margin(x: np.ndarray, y: np.ndarray, epsg: int, margin_m: float | None = None,
+                    path: Path = GSHHG_FILE) -> tuple[np.ndarray, np.ndarray]:
+    """Two boolean grids (len(y), len(x)): real land, and the safety strip of sea within `margin_m` of land.
 
     `margin_m=None` takes the margin from LAND_MARGIN_M (see `margin_from_env`).
+    Land just outside the grid still casts its margin into it.
     """
     if margin_m is None:
         margin_m = margin_from_env()
     if not Path(path).exists():
         raise FileNotFoundError(f"{path} is missing. Run: python -c 'from scripts.land_mask import download; download()'")
     polygons, bounds = _arctic_land(str(path), epsg)
-    pad = margin_m + abs(float(x[1] - x[0]))
-    x0, x1, y0, y1 = x.min() - pad, x.max() + pad, y.min() - pad, y.max() + pad
+    spacing = abs(float(x[1] - x[0]))
+    pad = int(np.ceil(margin_m / spacing))                 # extra pixels on every side, cut off again below
+    steps = np.arange(-pad, pad + 1)[:pad] * spacing       # -pad .. -1
+    wide_x = np.concatenate([x[0] + steps, x, x[-1] - steps[::-1]])
+    wide_y = np.concatenate([y[0] - steps, y, y[-1] + steps[::-1]])
+    x0, x1, y0, y1 = wide_x.min() - spacing, wide_x.max() + spacing, wide_y.min() - spacing, wide_y.max() + spacing
     near = (bounds[:, 2] >= x0) & (bounds[:, 0] <= x1) & (bounds[:, 3] >= y0) & (bounds[:, 1] <= y1)
-    land = rasterize_land([p for p, hit in zip(polygons, near) if hit], x, y)
-    return add_margin(land, abs(float(x[1] - x[0])), margin_m)
+    land = rasterize_land([p for p, hit in zip(polygons, near) if hit], wide_x, wide_y)
+    inner = (slice(pad, pad + len(y)), slice(pad, pad + len(x)))
+    with_margin = add_margin(land, spacing, margin_m)[inner]
+    land = land[inner]
+    return land, with_margin & ~land
+
+
+def land_mask(x: np.ndarray, y: np.ndarray, epsg: int, margin_m: float | None = None, path: Path = GSHHG_FILE) -> np.ndarray:
+    """Boolean grid (len(y), len(x)): True = land or within the safety margin of land."""
+    land, margin = land_and_margin(x, y, epsg, margin_m, path)
+    return land | margin

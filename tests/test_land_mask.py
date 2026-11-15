@@ -98,3 +98,22 @@ def test_land_mask_uses_the_margin_from_the_environment(tmp_path, monkeypatch):
     wide = land_mask(x, y, 3413, path=f)
     assert (narrow == land_mask(x, y, 3413, margin_m=1000, path=f)).all()
     assert wide.sum() > narrow.sum() and wide[narrow].all()       # a wider margin only adds land
+
+
+def test_land_and_margin_are_separate_and_land_outside_the_grid_still_counts(tmp_path):
+    from pyproj import Transformer
+    from scripts.land_mask import land_and_margin
+    f = tmp_path / "g.b"
+    f.write_bytes(polygon_bytes(square(-160.0, 71.0, 0.2), 1, 72))
+    cx, cy = Transformer.from_crs(4326, 3413, always_xy=True).transform(-159.9, 71.1)
+    x, y = np.arange(cx - 30_000, cx + 30_000, 400.0), np.arange(cy + 30_000, cy - 30_000, -400.0)
+    land, margin = land_and_margin(x, y, 3413, margin_m=2000, path=f)
+    assert land.any() and margin.any() and not (land & margin).any()
+    assert (land == land_mask(x, y, 3413, margin_m=0, path=f)).all()
+    assert ((land | margin) == land_mask(x, y, 3413, margin_m=2000, path=f)).all()
+    # a grid that starts just past the island: no land inside it, but the margin reaches in
+    rows, cols = np.nonzero(land)
+    start = cols.max() + 2
+    land2, margin2 = land_and_margin(x[start:], y, 3413, margin_m=2000, path=f)
+    assert not land2.any() and margin2.any()
+    assert (margin2 == margin[:, start:]).all()

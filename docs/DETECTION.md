@@ -57,15 +57,17 @@ Status: **finished and frozen on 14 Nov 2026.** Do not tune the model on the tes
 
 - Land comes from the **GSHHG full-resolution coastline** (third party, see `DATA_SOURCES.md`), not from the model.
 - **Land is applied after the prediction.** The model first answers on the untouched radar data, exactly as in
-  training. Then every land pixel is overwritten with "land". The model input never changes.
+  training. Then land and the coast margin are painted over it. The model input never changes.
 - A **safety margin** is added around all land (default 1 km). Lakes count as land.
+- **Land and margin are separate classes:** `LAND` is real land, `COAST_MARGIN` is the strip of sea next to it.
+  Land just outside the image still casts its margin into it.
 - Set the margin with `LAND_MARGIN_M` (metres) in `.env` or as an environment variable; see `.env.example`.
   A negative or non-number value stops the run. Below 400 m you get a warning: the model looks at a 720 m
   window, so answers that close to the coast are computed from pixels that contain land.
-- `classify_scene` returns a map with sea ice, open water, land and no-data.
+- `classify_scene` returns a map with sea ice, open water, land, coast margin and no-data.
 - Check on a real coastal scene: `figures/land_mask_check.png`. The coastline lines up with the radar image.
-- Same scene (Utqiagvik, 27 Oct) as a full map: `figures/map_20261027T074517.png`. Land share of the scene by
-  margin: 6.4 % at 0 m, 7.0 % at 1000 m, 8.9 % at 5000 m.
+- Same scene (Utqiagvik, 27 Oct) as a full map: `figures/map_20261027T074517.png`. Land is 6.4 % of the
+  scene; the margin adds 0.6 % at 1000 m and 2.5 % at 5000 m.
 - Not included: water depth. A shallow-water limit for shipping would need a depth chart.
 - First mask of a session takes about 30 s (reading the coastline); it is slow for an app unless cached per scene.
 
@@ -116,17 +118,28 @@ water, usable = predict_scene(load_model(), load_gcov("data/<scene>.h5"))   # wa
 With land (recommended for anything shown to users):
 
 ```python
-from scripts.evaluate_detection import LAND, OPEN_WATER, SEA_ICE, classify_scene, load_model
+from scripts.evaluate_detection import COAST_MARGIN, LAND, OPEN_WATER, SEA_ICE, classify_scene, load_model
 from scripts.nisar_loader import load_gcov
 
-classes = classify_scene(load_model(), load_gcov("data/<scene>.h5"))        # 0 sea ice, 1 open water, 2 land, 255 no data
+classes = classify_scene(load_model(), load_gcov("data/<scene>.h5"))        # 0 sea ice, 1 open water, 2 land, 3 coast margin, 255 no data
 ```
 
-Or as a picture (radar image next to the map, written to `figures/map_<start time>.png`):
+Compute a scene once and save it (about a minute). Writes the map to `data/maps/<scene name>.npz` and a
+picture to `figures/map_<start time>.png`:
 
 ```
 .venv/bin/python scripts/evaluate_detection.py map <scene name>
 ```
+
+An interface then loads the saved map in well under a second, with nothing computed again:
+
+```python
+from scripts.evaluate_detection import load_map
+
+m = load_map("<scene name>")     # m["classes"], m["x"], m["y"], m["epsg"], m["margin_m"]
+```
+
+The margin is baked into a saved map. After changing `LAND_MARGIN_M`, run the `map` command again.
 
 ## Files
 

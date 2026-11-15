@@ -9,7 +9,6 @@ You need **git** and **Python 3.12 or newer**. No radar data, no accounts, no da
 ```bash
 git clone https://github.com/SweetBoySavage/iceraider.git
 cd iceraider
-git checkout ship-route-interface      # until the branch is merged into main
 
 python -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\activate
@@ -18,7 +17,7 @@ pip install numpy pyproj
 python scripts/run_app.py              # opens http://127.0.0.1:8000/
 ```
 
-- Already have the repo? `git pull`, then `git checkout ship-route-interface`.
+- Already have the repo? `git pull` on `main`.
 - Port in use? `python scripts/run_app.py --port 8001`.
 - Show it to another computer on the same network: add `--host 0.0.0.0`, then open `http://<your IP>:8000/` there.
 - No browser opens? Go to `http://127.0.0.1:8000/` yourself. Use Chrome, Edge or Firefox.

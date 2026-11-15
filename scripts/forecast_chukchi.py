@@ -48,6 +48,7 @@ OUT_JSON = ROOT / "models" / "drift_forecast_result.json"
 TO_LONLAT = Transformer.from_crs(EPSG, 4326, always_xy=True)
 TO_MAP = Transformer.from_crs(4326, EPSG, always_xy=True)
 METHODS = ("full model", "wind only", "persistence")
+PERS_DARK = "#1a1a1a"           # persistence on grey radar backgrounds
 COLORS = {"NISAR": "#00b4d8", "full model": "#ff7f0e", "OSI SAF": "#2166ac", "persistence": "#9e9e9e"}
 
 
@@ -218,6 +219,7 @@ def main():
     OUT_JSON.parent.mkdir(exist_ok=True)
     OUT_JSON.write_text(json.dumps(result, indent=2))
     figure_short(day1, day2, short["full model"], result)
+    figure_check(day1, day2, short, result)
     figure_week(day0, pos, osi, week)
 
 
@@ -266,6 +268,58 @@ def figure_short(day1, day2, steps, result):
                  "Background: radar image at the start of the day; NISAR arrows exist only where two passes overlap.",
                  fontsize=11)
     plt.savefig(FIGS / "chukchi_drift_forecast.png", dpi=100); plt.close()
+
+
+def figure_check(day1, day2, short, result):
+    """Forecast vs NISAR, piece by piece: for every forecast arrow with a NISAR arrow starting within MATCH_KM,
+    the start, the forecast end, the NISAR end and the persistence end; red line = forecast error."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+
+    fig, axes = plt.subplots(1, 2, figsize=(17, 9), layout="constrained")
+    for ax, k, truth, label in ((axes[0], 0, day1, "Day 1"), (axes[1], 1, day2, "Day 2")):
+        model, pers = short["full model"][k], short["persistence"][k]
+        idx = match(model["x"], model["y"], truth)
+        ok = idx >= 0
+        sx, sy = model["x"][ok] / 1e3, model["y"][ok] / 1e3
+        ends = {"full model": moved(model["x"][ok], model["y"][ok], model["v"][ok], model["hours"]),
+                "persistence": moved(pers["x"][ok], pers["y"][ok], pers["v"][ok], pers["hours"]),
+                # the NISAR arrow is drawn from the forecast start: same ice, same start, compare the ends
+                "NISAR": moved(model["x"][ok], model["y"][ok], truth["v"][idx[ok]], truth["hours"])}
+        ends = {kk: (ex / 1e3, ey / 1e3) for kk, (ex, ey) in ends.items()}
+        background(ax, truth["start"], truth["grid"])
+        color = {**COLORS, "persistence": PERS_DARK}
+        for name, style in (("persistence", dict(ls="--", lw=1.2, alpha=0.8)), ("NISAR", dict(ls="-", lw=1.8)),
+                            ("full model", dict(ls="-", lw=1.8))):
+            ex, ey = ends[name]
+            ax.plot(np.vstack([sx, ex]), np.vstack([sy, ey]), color=color[name], **style)
+            ax.plot(ex, ey, "o", color=color[name], ms=4.5 if name != "persistence" else 3.5)
+        (mx, my), (nx, ny) = ends["full model"], ends["NISAR"]
+        ax.plot(np.vstack([mx, nx]), np.vstack([my, ny]), color="#d62728", lw=1.6)
+        ax.plot(sx, sy, "o", color="white", mec="black", ms=5.5, zorder=5)
+        allx = np.concatenate([sx] + [e[0] for e in ends.values()])
+        ally = np.concatenate([sy] + [e[1] for e in ends.values()])
+        if len(allx):
+            pad = max(8.0, 0.08 * max(np.ptp(allx), np.ptp(ally)))
+            ax.set_xlim(allx.min() - pad, allx.max() + pad); ax.set_ylim(ally.min() - pad, ally.max() + pad)
+        r = result[f"day {k + 1}, {k + 1}-day forecast"]
+        ax.set_title(f"{label}: {truth['t0']:%d %b %H:%M} -> {truth['t1']:%d %b %H:%M} UTC ({k + 1}-day forecast), "
+                     f"{r['full model']['n']} pieces of ice with a NISAR arrow\n"
+                     f"ice moved {r['full model']['mean_obs_speed']:.1f} km; forecast error (red) {r['full model']['rmse']:.1f} km, "
+                     f"persistence error {r['persistence']['rmse']:.1f} km", fontsize=11)
+        ax.set_xlabel("x (km, EPSG:3413)"); ax.set_ylabel("y (km)")
+    axes[0].legend(handles=[Line2D([], [], color="white", marker="o", mec="black", ls="", label="start (same piece of ice)"),
+                            Line2D([], [], color=COLORS["NISAR"], lw=2, marker="o", ms=4, label="where NISAR saw it go"),
+                            Line2D([], [], color=COLORS["full model"], lw=2, marker="o", ms=4, label="where the model said it would go"),
+                            Line2D([], [], color="#d62728", lw=2, label="forecast error"),
+                            Line2D([], [], color=PERS_DARK, lw=1.5, ls="--", marker="o", ms=3, label="persistence (same as the day before)")],
+                   loc="lower left", framealpha=0.9)
+    fig.suptitle("Drift forecast checked against NISAR, piece of ice by piece of ice. Forecast from the 27 -> 28 Oct NISAR "
+                 "drift + ERA5 wind; NISAR arrows from tracking the next passes. Lines = displacement at map scale.",
+                 fontsize=11)
+    plt.savefig(FIGS / "chukchi_drift_forecast_check.png", dpi=100); plt.close()
 
 
 def figure_week(day0, pos, osi, week):

@@ -38,6 +38,12 @@ confuse the matching. So each HH image is:
    small-scale pattern of floes, ridges and leads (`texture()` in `run_chukchi.py`, `highpass()` in
    `ice_tracking.py`).
 
+    I.e., A Gaussian blur replaces every pixel with a weighted average of its neighbours. Averaging over several kilometres wipes out anything smaller than that: individual floes, ridges and cracks. What's left is the slow trend,     the large-scale brightness. That trend is caused by things like the viewing angle (the far side of the swath is darker) or one sensor being brighter overall. Step 2: The subtraction (img - blurred):
+
+    original  =  trend (slow)  +  detail (fine)
+    blurred   ≈  trend
+    original − blurred  ≈  detail
+
 Pixels with no data stay NaN, and any patch that touches them is skipped.
 
 ## 3. Match patches (`track()`)
